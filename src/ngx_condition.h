@@ -6,14 +6,6 @@
 #include <ngx_core.h>
 
 
-#ifndef NGX_CONDITION
-#define NGX_CONDITION  0
-#endif
-
-
-#if (NGX_CONDITION)
-
-
 typedef ngx_uint_t  ngx_condition_id_t;
 typedef ngx_uint_t  ngx_condition_expr_id_t;
 
@@ -240,9 +232,6 @@ char *ngx_conf_set_conditional_enum_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 char *ngx_conf_set_conditional_bitmask_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-
-
-#endif /* NGX_CONDITION */
 
 
 #endif /* _NGX_CONDITION_H_INCLUDED_ */

@@ -9,9 +9,6 @@
 #include "ngx_http_condition_module.h"
 
 
-#if (NGX_CONDITION)
-
-
 typedef struct ngx_http_condition_def_s  ngx_http_condition_def_t;
 
 
@@ -138,7 +135,7 @@ static char *ngx_http_condition_set_complex_slot(ngx_conf_t *cf,
 static ngx_http_condition_operator_t  ngx_http_condition_operators[] = {
     { ngx_string("not"), NGX_CONDITION_OP_NOT, 1, 1, 0 },
     { ngx_string("and"), NGX_CONDITION_OP_AND, 2, (ngx_uint_t) -1, 0 },
-    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, 2, 0 },
+    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, (ngx_uint_t) -1, 0 },
     { ngx_string("is_empty"), NGX_CONDITION_OP_IS_EMPTY, 1, 1, 0 },
     { ngx_string("is_not_empty"), NGX_CONDITION_OP_IS_NOT_EMPTY, 1, 1, 0 },
     { ngx_string("str_eq"), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
@@ -1520,6 +1517,3 @@ ngx_http_get_conditional_complex_value_sec(ngx_http_request_t *r,
 }
 
 #endif
-
-
-#endif /* NGX_CONDITION */

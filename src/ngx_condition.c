@@ -4,9 +4,6 @@
 #include "ngx_condition.h"
 
 
-#if (NGX_CONDITION)
-
-
 typedef void (*ngx_condition_init_value_pt)(void *ctx);
 
 
@@ -1001,6 +998,3 @@ ngx_conf_set_conditional_bitmask_slot(ngx_conf_t *cf, ngx_command_t *cmd,
                                    ngx_condition_init_bitmask,
                                    ngx_conf_set_bitmask_slot);
 }
-
-
-#endif /* NGX_CONDITION */

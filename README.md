@@ -17,37 +17,37 @@ changed between processing phases.
 ## Table of contents
 
 - [ngx\_condition\_module](#ngx_condition_module)
-	- [Table of contents](#table-of-contents)
-	- [Status](#status)
-	- [Features](#features)
-	- [Synopsis](#synopsis)
-	- [Installation](#installation)
-		- [Requirements](#requirements)
-		- [Optional cJSON support](#optional-cjson-support)
-		- [Static build](#static-build)
-	- [Configuration](#configuration)
-		- [`condition`](#condition)
-		- [`when`](#when)
-		- [Condition operators](#condition-operators)
-			- [Logic](#logic)
-			- [Empty values](#empty-values)
-			- [Strings](#strings)
-			- [Numbers](#numbers)
-			- [Time](#time)
-			- [IP addresses and networks](#ip-addresses-and-networks)
-			- [JSON](#json)
-		- [Scope, inheritance, and repeated definitions](#scope-inheritance-and-repeated-definitions)
-		- [Evaluation and priority](#evaluation-and-priority)
-	- [Integrating another module](#integrating-another-module)
-		- [Public headers and build guard](#public-headers-and-build-guard)
-		- [Allowing a directive inside `when`](#allowing-a-directive-inside-when)
-		- [Custom configuration handlers](#custom-configuration-handlers)
-		- [Conditional slot setters and getters](#conditional-slot-setters-and-getters)
-		- [Expression result API](#expression-result-api)
-	- [Diagnostics and performance](#diagnostics-and-performance)
-	- [Limitations](#limitations)
-	- [Author](#author)
-	- [License](#license)
+  - [Table of contents](#table-of-contents)
+  - [Status](#status)
+  - [Features](#features)
+  - [Synopsis](#synopsis)
+  - [Installation](#installation)
+    - [Requirements](#requirements)
+    - [Optional cJSON support](#optional-cjson-support)
+    - [Static build](#static-build)
+  - [Configuration](#configuration)
+    - [`condition`](#condition)
+    - [`when`](#when)
+    - [Condition operators](#condition-operators)
+      - [Logic](#logic)
+      - [Empty values](#empty-values)
+      - [Strings](#strings)
+      - [Numbers](#numbers)
+      - [Time](#time)
+      - [IP addresses and networks](#ip-addresses-and-networks)
+      - [JSON](#json)
+    - [Scope, inheritance, and repeated definitions](#scope-inheritance-and-repeated-definitions)
+    - [Evaluation and priority](#evaluation-and-priority)
+  - [Integrating another module](#integrating-another-module)
+    - [Public headers and build guard](#public-headers-and-build-guard)
+    - [Allowing a directive inside `when`](#allowing-a-directive-inside-when)
+    - [Custom configuration handlers](#custom-configuration-handlers)
+    - [Conditional slot setters and getters](#conditional-slot-setters-and-getters)
+    - [Expression result API](#expression-result-api)
+  - [Diagnostics and performance](#diagnostics-and-performance)
+  - [Limitations](#limitations)
+  - [Author](#author)
+  - [License](#license)
 
 ## Status
 
@@ -224,12 +224,12 @@ are rejected by the normal NGINX configuration-context check.
 ```nginx
 condition name not condition_name;
 condition name and condition_name1 condition_name2...;
-condition name or condition_name1 condition_name2;
+condition name or condition_name1 condition_name2...;
 ```
 
 - `not` negates one named condition.
 - `and` accepts two or more names and short-circuits on the first non-match.
-- `or` accepts exactly two names and short-circuits on the first match.
+- `or` accepts two or more names and short-circuits on the first match.
 
 Logical references may also be forward references. Cycles are rejected while
 the effective configuration for each scope is finalized.
@@ -415,10 +415,6 @@ Use the protocol-specific public header only. Do not include the internal
 `ngx_condition.h` directly.
 
 ```c
-#ifndef NGX_CONDITION
-#define NGX_CONDITION  0
-#endif
-
 #if (NGX_CONDITION)
 #include <ngx_http_condition_module.h>
 /* or, in a Stream module: #include <ngx_stream_condition_module.h> */
@@ -426,10 +422,11 @@ Use the protocol-specific public header only. Do not include the internal
 ```
 
 The addon's `config` script defines `NGX_CONDITION` through NGINX's generated
-configuration header. When the addon is absent, every integration point must
-compile back to its original field layout, directive flags, setter, merge
-logic, and runtime access path. Do not expose condition-specific symbols from
-an unguarded branch.
+configuration header. Like NGINX's own feature macros, an undefined
+`NGX_CONDITION` evaluates to zero in `#if`. When the addon is absent, every
+integration point must compile back to its original field layout, directive
+flags, setter, merge logic, and runtime access path. Do not expose
+condition-specific symbols from an unguarded branch.
 
 ### Allowing a directive inside `when`
 
@@ -440,7 +437,6 @@ The public context flags are:
 | `NGX_HTTP_MAIN_WHEN_CONF` | `NGX_STREAM_MAIN_WHEN_CONF` |
 | `NGX_HTTP_SRV_WHEN_CONF` | `NGX_STREAM_SRV_WHEN_CONF` |
 | `NGX_HTTP_LOC_WHEN_CONF` | — |
-| `NGX_HTTP_ANY_WHEN_CONF` | `NGX_STREAM_ANY_WHEN_CONF` |
 
 Add only the `when` flag corresponding to a context the directive already
 supports. Do not use a `when` flag to broaden the directive's normal scope.

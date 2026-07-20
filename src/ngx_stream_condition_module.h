@@ -9,14 +9,8 @@
 #include "ngx_condition.h"
 
 
-#if (NGX_CONDITION)
-
-
 #define NGX_STREAM_MAIN_WHEN_CONF  0x00100000
 #define NGX_STREAM_SRV_WHEN_CONF   0x00200000
-
-#define NGX_STREAM_ANY_WHEN_CONF                                        \
-    (NGX_STREAM_MAIN_WHEN_CONF | NGX_STREAM_SRV_WHEN_CONF)
 
 
 typedef struct {
@@ -128,9 +122,6 @@ ngx_stream_get_conditional_bufs_value(ngx_stream_session_t *s,
 
     return (ctx != NULL) ? &ctx->value : NULL;
 }
-
-
-#endif /* NGX_CONDITION */
 
 
 #endif /* _NGX_STREAM_CONDITION_MODULE_H_INCLUDED_ */

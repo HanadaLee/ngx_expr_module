@@ -9,16 +9,9 @@
 #include "ngx_condition.h"
 
 
-#if (NGX_CONDITION)
-
-
 #define NGX_HTTP_MAIN_WHEN_CONF  0x00100000
 #define NGX_HTTP_SRV_WHEN_CONF   0x00200000
 #define NGX_HTTP_LOC_WHEN_CONF   0x00400000
-
-#define NGX_HTTP_ANY_WHEN_CONF                                           \
-    (NGX_HTTP_MAIN_WHEN_CONF | NGX_HTTP_SRV_WHEN_CONF                    \
-     | NGX_HTTP_LOC_WHEN_CONF)
 
 
 typedef struct {
@@ -141,9 +134,6 @@ ngx_http_get_conditional_bufs_value(ngx_http_request_t *r,
 
     return (ctx != NULL) ? &ctx->value : NULL;
 }
-
-
-#endif /* NGX_CONDITION */
 
 
 #endif /* _NGX_HTTP_CONDITION_MODULE_H_INCLUDED_ */

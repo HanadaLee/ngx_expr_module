@@ -9,9 +9,6 @@
 #include "ngx_stream_condition_module.h"
 
 
-#if (NGX_CONDITION)
-
-
 typedef struct ngx_stream_condition_def_s  ngx_stream_condition_def_t;
 
 
@@ -138,7 +135,7 @@ static char *ngx_stream_condition_set_complex_slot(ngx_conf_t *cf,
 static ngx_stream_condition_operator_t  ngx_stream_condition_operators[] = {
     { ngx_string("not"), NGX_CONDITION_OP_NOT, 1, 1, 0 },
     { ngx_string("and"), NGX_CONDITION_OP_AND, 2, (ngx_uint_t) -1, 0 },
-    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, 2, 0 },
+    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, (ngx_uint_t) -1, 0 },
     { ngx_string("is_empty"), NGX_CONDITION_OP_IS_EMPTY, 1, 1, 0 },
     { ngx_string("is_not_empty"), NGX_CONDITION_OP_IS_NOT_EMPTY, 1, 1, 0 },
     { ngx_string("str_eq"), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
@@ -1448,6 +1445,3 @@ ngx_stream_get_conditional_complex_value_size(ngx_stream_session_t *s,
 
     return ngx_stream_complex_value_size(s, ctx->value, default_value);
 }
-
-
-#endif /* NGX_CONDITION */
