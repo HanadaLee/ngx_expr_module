@@ -222,14 +222,23 @@ are rejected by the normal NGINX configuration-context check.
 #### Logic
 
 ```nginx
-condition name not condition_name;
-condition name and condition_name1 condition_name2...;
-condition name or condition_name1 condition_name2...;
+condition name not condition_ref;
+condition name and condition_ref1 condition_ref2...;
+condition name or condition_ref1 condition_ref2...;
 ```
 
 - `not` negates one named condition.
 - `and` accepts two or more names and short-circuits on the first non-match.
 - `or` accepts two or more names and short-circuits on the first match.
+
+Each `condition_ref` is either `condition_name` or `!condition_name`. The `!`
+prefix negates only that reference and is supported by `not`, `and`, and `or`:
+
+```nginx
+condition allowed and authenticated !blocked;
+condition fallback or primary !maintenance backup;
+condition enabled not !configured;
+```
 
 Logical references may also be forward references. Cycles are rejected while
 the effective configuration for each scope is finalized.

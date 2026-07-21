@@ -38,7 +38,7 @@ struct ngx_http_condition_def_s {
     ngx_condition_op_e             op;
     unsigned                       ignore_case:1;
     ngx_http_complex_value_t       values[3];
-    ngx_array_t                   *refs;     /* ngx_condition_id_t */
+    ngx_array_t                   *terms;    /* ngx_condition_term_t */
     ngx_array_t                   *ip_items; /* ngx_condition_ip_item_t */
     ngx_http_condition_time_t     *time;
 #if (NGX_PCRE)
@@ -349,32 +349,39 @@ ngx_http_condition_parse_logic(ngx_conf_t *cf,
     ngx_http_condition_main_conf_t *cmcf,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_str_t             *value;
-    ngx_uint_t             i;
-    ngx_condition_id_t    *id;
-    ngx_condition_name_t  *name;
+    ngx_str_t              name, *value;
+    ngx_uint_t             i, negative;
+    ngx_condition_term_t  *term;
+    ngx_condition_name_t  *entry;
 
-    definition->refs = ngx_array_create(cf->pool, cf->args->nelts - first,
-                                         sizeof(ngx_condition_id_t));
-    if (definition->refs == NULL) {
+    definition->terms = ngx_array_create(cf->pool, cf->args->nelts - first,
+                                          sizeof(ngx_condition_term_t));
+    if (definition->terms == NULL) {
         return NGX_ERROR;
     }
 
     value = cf->args->elts;
 
     for (i = first; i < cf->args->nelts; i++) {
-        name = ngx_condition_get_or_create_name(cf, &cmcf->registry,
-                                                &value[i]);
-        if (name == NULL) {
+        name = value[i];
+        negative = (name.len != 0 && name.data[0] == '!');
+        if (negative) {
+            name.data++;
+            name.len--;
+        }
+
+        entry = ngx_condition_get_or_create_name(cf, &cmcf->registry, &name);
+        if (entry == NULL) {
             return NGX_ERROR;
         }
 
-        id = ngx_array_push(definition->refs);
-        if (id == NULL) {
+        term = ngx_array_push(definition->terms);
+        if (term == NULL) {
             return NGX_ERROR;
         }
 
-        *id = name->id;
+        term->condition_id = entry->id;
+        term->negative = negative;
     }
 
     return NGX_OK;
@@ -814,7 +821,7 @@ ngx_http_condition_visit(ngx_conf_t *cf,
     u_char *state)
 {
     ngx_uint_t                         i, j;
-    ngx_condition_id_t                *ref;
+    ngx_condition_term_t              *term;
     ngx_condition_name_t              *name;
     ngx_http_condition_def_t         **definition;
     ngx_http_condition_scope_entry_t  *entry;
@@ -846,9 +853,10 @@ ngx_http_condition_visit(ngx_conf_t *cf,
             continue;
         }
 
-        ref = definition[i]->refs->elts;
-        for (j = 0; j < definition[i]->refs->nelts; j++) {
-            if (ngx_http_condition_visit(cf, cmcf, conf, ref[j], state)
+        term = definition[i]->terms->elts;
+        for (j = 0; j < definition[i]->terms->nelts; j++) {
+            if (ngx_http_condition_visit(cf, cmcf, conf,
+                                         term[j].condition_id, state)
                 != NGX_OK)
             {
                 return NGX_ERROR;
@@ -1067,37 +1075,49 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
     ngx_str_t                 a, b, zero;
     ngx_int_t                 cmp;
     ngx_uint_t                i;
-    ngx_condition_id_t       *ref;
+    ngx_condition_term_t     *term;
     ngx_condition_ip_t        ip;
     ngx_condition_ip_item_t  *item;
 
     if (definition->op >= NGX_CONDITION_OP_LOGIC_FIRST
         && definition->op <= NGX_CONDITION_OP_LOGIC_LAST)
     {
-        ref = definition->refs->elts;
+        term = definition->terms->elts;
 
         if (definition->op == NGX_CONDITION_OP_NOT) {
-            cmp = !ngx_http_condition_eval_id(r, cmcf, clcf, ref[0], depth);
-            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "condition logic, op:%ui ref:%ui result:%i depth:%ui",
-                           definition->op, ref[0], cmp, depth);
+            cmp = ngx_http_condition_eval_id(r, cmcf, clcf,
+                                              term[0].condition_id, depth);
+            if (term[0].negative) {
+                cmp = !cmp;
+            }
+            cmp = !cmp;
+            ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "condition logic, op:%ui ref:%ui negative:%ui result:%i depth:%ui",
+                           definition->op, term[0].condition_id,
+                           term[0].negative, cmp, depth);
             return cmp;
         }
 
-        for (i = 0; i < definition->refs->nelts; i++) {
-            cmp = ngx_http_condition_eval_id(r, cmcf, clcf, ref[i], depth);
+        for (i = 0; i < definition->terms->nelts; i++) {
+            cmp = ngx_http_condition_eval_id(r, cmcf, clcf,
+                                              term[i].condition_id, depth);
+            if (term[i].negative) {
+                cmp = !cmp;
+            }
 
             if (definition->op == NGX_CONDITION_OP_AND && !cmp) {
-                ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                               "condition logic short circuit, op:%ui child:%ui ref:%ui result:%i depth:%ui",
-                               definition->op, i, ref[i], cmp, depth);
+                ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                               "condition logic short circuit, op:%ui child:%ui ref:%ui negative:%ui result:%i depth:%ui",
+                               definition->op, i, term[i].condition_id,
+                               term[i].negative, cmp, depth);
                 return 0;
             }
 
             if (definition->op == NGX_CONDITION_OP_OR && cmp) {
-                ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                               "condition logic short circuit, op:%ui child:%ui ref:%ui result:%i depth:%ui",
-                               definition->op, i, ref[i], cmp, depth);
+                ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                               "condition logic short circuit, op:%ui child:%ui ref:%ui negative:%ui result:%i depth:%ui",
+                               definition->op, i, term[i].condition_id,
+                               term[i].negative, cmp, depth);
                 return 1;
             }
         }
