@@ -63,8 +63,8 @@ be treated as evolving interfaces.
 - Logical, string, numeric, time, IP/CIDR, regular-expression, and optional
   JSON predicates.
 - Same-scope repeated definitions combined with implicit OR.
-- Condition-aware replacements for common NGINX slot setters and complex-value
-  setters.
+- Condition-aware replacements for common NGINX slot setters, merge/default
+  helpers, and complex-value setters.
 - Typed request/session getters for selecting the first matching configured
   value.
 - Configuration-time validation of undefined names, conflicting definitions,
@@ -518,10 +518,67 @@ typedef struct {
 } ngx_http_example_loc_conf_t;
 ```
 
-Initialize the array field to `NGX_CONF_UNSET_PTR` in `create_*_conf`. Its merge
-logic must preserve the final element order and append any inherited/default
-unconditional fallback after explicit entries. It must not reorder entries by
-expression ID or by whether they are conditional.
+Initialize the array field to `NGX_CONF_UNSET_PTR` in `create_*_conf`. The
+common init and merge helpers preserve element order and ensure that inherited
+or default values remain lower-priority fallbacks:
+
+- `init` keeps existing entries and appends an unconditional default only when
+  the array has no unconditional entry.
+- `merge` directly inherits the parent array when the child has no entries.
+- If the child has conditional entries but no unconditional entry, the parent
+  array is appended after the child entries.
+- If neither array supplies an unconditional entry, the default is appended
+  last.
+- A child unconditional entry completes the local value set, so no parent
+  entries are appended.
+
+All helpers return `NGX_OK` or `NGX_ERROR`. The supported scalar and fixed-value
+families are:
+
+| Value | Init helper | Merge helper |
+| --- | --- | --- |
+| flag | `ngx_conf_init_conditional_flag_value` | `ngx_conf_merge_conditional_flag_value` |
+| string | `ngx_conf_init_conditional_str_value` | `ngx_conf_merge_conditional_str_value` |
+| pointer | `ngx_conf_init_conditional_ptr_value` | `ngx_conf_merge_conditional_ptr_value` |
+| integer | `ngx_conf_init_conditional_num_value` | `ngx_conf_merge_conditional_num_value` |
+| size | `ngx_conf_init_conditional_size_value` | `ngx_conf_merge_conditional_size_value` |
+| offset | `ngx_conf_init_conditional_off_value` | `ngx_conf_merge_conditional_off_value` |
+| milliseconds | `ngx_conf_init_conditional_msec_value` | `ngx_conf_merge_conditional_msec_value` |
+| seconds | `ngx_conf_init_conditional_sec_value` | `ngx_conf_merge_conditional_sec_value` |
+| buffers | `ngx_conf_init_conditional_bufs_value` | `ngx_conf_merge_conditional_bufs_value` |
+| enum | `ngx_conf_init_conditional_enum_value` | `ngx_conf_merge_conditional_enum_value` |
+| bitmask | `ngx_conf_init_conditional_bitmask_value` | `ngx_conf_merge_conditional_bitmask_value` |
+
+For example:
+
+```c
+static char *
+ngx_http_example_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
+{
+    ngx_http_example_loc_conf_t  *prev = parent;
+    ngx_http_example_loc_conf_t  *conf = child;
+
+    if (ngx_conf_merge_conditional_flag_value(cf, &conf->enabled,
+                                              prev->enabled, 0)
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+```
+
+Generic pointers use `ngx_conf_condition_ptr_ctx_t`; HTTP and Stream consumers
+can retrieve them with `ngx_http_get_conditional_ptr_value` and
+`ngx_stream_get_conditional_ptr_value`. The pointer init/merge helpers derive
+the element size from the child or parent array, so the value may be any object
+pointer type, including the typed HTTP and Stream complex-value pointers. As
+with NGINX's native pointer merge macro, the caller is responsible for passing
+a compatible pointer-value context array. `ngx_conf_condition_str_array_ctx_t`
+and `ngx_conf_condition_keyval_ctx_t` deliberately have no generic init/merge
+helper because their values are arrays with module-specific replacement or
+append semantics.
 
 The common setter replacements are:
 
@@ -566,12 +623,15 @@ ngx_stream_set_conditional_complex_value_size_slot
 The shared array element types are `ngx_conf_condition_flag_ctx_t`,
 `ngx_conf_condition_str_ctx_t`, `ngx_conf_condition_str_array_ctx_t`,
 `ngx_conf_condition_keyval_ctx_t`, `ngx_conf_condition_num_ctx_t`,
-`ngx_conf_condition_size_ctx_t`, `ngx_conf_condition_off_ctx_t`,
-`ngx_conf_condition_msec_ctx_t`, `ngx_conf_condition_sec_ctx_t`,
-`ngx_conf_condition_bufs_ctx_t`, `ngx_conf_condition_enum_ctx_t`, and
+`ngx_conf_condition_ptr_ctx_t`, `ngx_conf_condition_size_ctx_t`,
+`ngx_conf_condition_off_ctx_t`, `ngx_conf_condition_msec_ctx_t`,
+`ngx_conf_condition_sec_ctx_t`, `ngx_conf_condition_bufs_ctx_t`,
+`ngx_conf_condition_enum_ctx_t`, and
 `ngx_conf_condition_bitmask_ctx_t`. HTTP and Stream complex values use
 `ngx_http_condition_complex_value_ctx_t` and
-`ngx_stream_condition_complex_value_ctx_t`, respectively.
+`ngx_stream_condition_complex_value_ctx_t`, respectively. They remain typed
+for protocol-specific compilation and evaluation while sharing the generic
+pointer init/merge implementation.
 
 At runtime, use the protocol-specific typed getter rather than implementing an
 evaluation loop in each consumer:
@@ -580,6 +640,7 @@ evaluation loop in each consumer:
 | --- | --- | --- |
 | flag | `ngx_http_get_conditional_flag_value` | `ngx_stream_get_conditional_flag_value` |
 | string | `ngx_http_get_conditional_str_value` | `ngx_stream_get_conditional_str_value` |
+| pointer | `ngx_http_get_conditional_ptr_value` | `ngx_stream_get_conditional_ptr_value` |
 | string array | `ngx_http_get_conditional_str_array_value` | `ngx_stream_get_conditional_str_array_value` |
 | key/value array | `ngx_http_get_conditional_keyval_value` | `ngx_stream_get_conditional_keyval_value` |
 | integer | `ngx_http_get_conditional_num_value` | `ngx_stream_get_conditional_num_value` |

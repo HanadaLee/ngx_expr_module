@@ -687,6 +687,305 @@ ngx_conf_get_conditional_ctx(void *data, ngx_array_t *values,
 }
 
 
+static ngx_uint_t
+ngx_condition_array_has_values(ngx_array_t *values)
+{
+    return values != NULL && values != NGX_CONF_UNSET_PTR
+           && values->nelts != 0;
+}
+
+
+static ngx_int_t
+ngx_condition_append_array(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *source, size_t element_size)
+{
+    void         *p;
+    ngx_array_t  *copy;
+
+    if (!ngx_condition_array_has_values(source)) {
+        return NGX_OK;
+    }
+
+    if (source->size != element_size) {
+        return NGX_ERROR;
+    }
+
+    if (*values == source) {
+        copy = ngx_array_create(cf->pool, source->nelts + 1, element_size);
+        if (copy == NULL) {
+            return NGX_ERROR;
+        }
+
+        p = ngx_array_push_n(copy, source->nelts);
+        if (p == NULL) {
+            return NGX_ERROR;
+        }
+
+        ngx_memcpy(p, source->elts, source->nelts * element_size);
+        *values = copy;
+
+        return NGX_OK;
+    }
+
+    if (*values == NULL || *values == NGX_CONF_UNSET_PTR) {
+        *values = ngx_array_create(cf->pool, source->nelts + 1,
+                                   element_size);
+        if (*values == NULL) {
+            return NGX_ERROR;
+        }
+
+    } else if ((*values)->size != element_size) {
+        return NGX_ERROR;
+    }
+
+    p = ngx_array_push_n(*values, source->nelts);
+    if (p == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(p, source->elts, source->nelts * element_size);
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_condition_append_default(ngx_conf_t *cf, ngx_array_t **values,
+    size_t element_size, size_t value_offset, size_t value_size,
+    size_t expr_id_offset, const void *default_value)
+{
+    u_char                   *ctx;
+    ngx_condition_expr_id_t  *expr_id;
+
+    if (*values == NULL || *values == NGX_CONF_UNSET_PTR) {
+        *values = ngx_array_create(cf->pool, 1, element_size);
+        if (*values == NULL) {
+            return NGX_ERROR;
+        }
+
+    } else if ((*values)->size != element_size) {
+        return NGX_ERROR;
+    }
+
+    ctx = ngx_array_push(*values);
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(ctx, element_size);
+    ngx_memcpy(ctx + value_offset, default_value, value_size);
+
+    expr_id = (ngx_condition_expr_id_t *) (ctx + expr_id_offset);
+    *expr_id = NGX_CONDITION_NO_EXPR_ID;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_condition_init_conditional_array(ngx_conf_t *cf, ngx_array_t **values,
+    size_t element_size, size_t value_offset, size_t value_size,
+    size_t expr_id_offset, const void *default_value)
+{
+    if (ngx_condition_array_has_values(*values)) {
+        if ((*values)->size != element_size) {
+            return NGX_ERROR;
+        }
+
+        if (ngx_condition_find_expr_ctx(*values, NGX_CONDITION_NO_EXPR_ID,
+                                        element_size, expr_id_offset)
+            != NULL)
+        {
+            return NGX_OK;
+        }
+    }
+
+    return ngx_condition_append_default(cf, values, element_size,
+                                        value_offset, value_size,
+                                        expr_id_offset, default_value);
+}
+
+
+static ngx_int_t
+ngx_condition_merge_conditional_array(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, size_t element_size, size_t value_offset,
+    size_t value_size, size_t expr_id_offset, const void *default_value)
+{
+    if (!ngx_condition_array_has_values(*values)) {
+        if (ngx_condition_array_has_values(prev)) {
+            if (prev->size != element_size) {
+                return NGX_ERROR;
+            }
+
+            if (ngx_condition_find_expr_ctx(prev, NGX_CONDITION_NO_EXPR_ID,
+                                            element_size, expr_id_offset)
+                != NULL)
+            {
+                *values = prev;
+                return NGX_OK;
+            }
+
+            if (ngx_condition_append_array(cf, values, prev, element_size)
+                != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+        }
+
+        return ngx_condition_init_conditional_array(cf, values,
+                   element_size, value_offset, value_size, expr_id_offset,
+                   default_value);
+    }
+
+    if ((*values)->size != element_size) {
+        return NGX_ERROR;
+    }
+
+    if (ngx_condition_find_expr_ctx(*values, NGX_CONDITION_NO_EXPR_ID,
+                                    element_size, expr_id_offset)
+        != NULL)
+    {
+        return NGX_OK;
+    }
+
+    if (ngx_condition_append_array(cf, values, prev, element_size) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+               value_offset, value_size, expr_id_offset, default_value);
+}
+
+
+#define ngx_condition_merge_helpers(name, type, ctx_type)                   \
+    ngx_int_t                                                               \
+    ngx_conf_init_conditional_##name##_value(ngx_conf_t *cf,                \
+        ngx_array_t **values, type default_value)                            \
+    {                                                                        \
+        return ngx_condition_init_conditional_array(cf, values,             \
+                   sizeof(ctx_type), offsetof(ctx_type, value),              \
+                   sizeof(type), offsetof(ctx_type, expr_id),                \
+                   &default_value);                                          \
+    }                                                                        \
+                                                                             \
+                                                                             \
+    ngx_int_t                                                               \
+    ngx_conf_merge_conditional_##name##_value(ngx_conf_t *cf,               \
+        ngx_array_t **values, ngx_array_t *prev, type default_value)         \
+    {                                                                        \
+        return ngx_condition_merge_conditional_array(cf, values, prev,      \
+                   sizeof(ctx_type), offsetof(ctx_type, value),              \
+                   sizeof(type), offsetof(ctx_type, expr_id),                \
+                   &default_value);                                          \
+    }
+
+
+ngx_condition_merge_helpers(flag, ngx_flag_t,
+    ngx_conf_condition_flag_ctx_t)
+ngx_condition_merge_helpers(str, ngx_str_t,
+    ngx_conf_condition_str_ctx_t)
+ngx_condition_merge_helpers(num, ngx_int_t,
+    ngx_conf_condition_num_ctx_t)
+ngx_condition_merge_helpers(size, size_t,
+    ngx_conf_condition_size_ctx_t)
+ngx_condition_merge_helpers(off, off_t,
+    ngx_conf_condition_off_ctx_t)
+ngx_condition_merge_helpers(msec, ngx_msec_t,
+    ngx_conf_condition_msec_ctx_t)
+ngx_condition_merge_helpers(sec, time_t,
+    ngx_conf_condition_sec_ctx_t)
+ngx_condition_merge_helpers(enum, ngx_uint_t,
+    ngx_conf_condition_enum_ctx_t)
+ngx_condition_merge_helpers(bitmask, ngx_uint_t,
+    ngx_conf_condition_bitmask_ctx_t)
+
+#undef ngx_condition_merge_helpers
+
+
+static size_t
+ngx_condition_ptr_ctx_size(ngx_array_t *values, ngx_array_t *prev)
+{
+    if (values != NULL && values != NGX_CONF_UNSET_PTR) {
+        return values->size;
+    }
+
+    if (prev != NULL && prev != NGX_CONF_UNSET_PTR) {
+        return prev->size;
+    }
+
+    return sizeof(ngx_conf_condition_ptr_ctx_t);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_ptr_value(ngx_conf_t *cf, ngx_array_t **values,
+    void *default_value)
+{
+    size_t  element_size;
+
+    element_size = ngx_condition_ptr_ctx_size(*values, NULL);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+               offsetof(ngx_conf_condition_ptr_ctx_t, value),
+               sizeof(void *),
+               offsetof(ngx_conf_condition_ptr_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_ptr_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, void *default_value)
+{
+    size_t  element_size;
+
+    element_size = ngx_condition_ptr_ctx_size(*values, prev);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               element_size,
+               offsetof(ngx_conf_condition_ptr_ctx_t, value),
+               sizeof(void *),
+               offsetof(ngx_conf_condition_ptr_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_bufs_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_uint_t default_num, size_t default_size)
+{
+    ngx_bufs_t default_value;
+
+    default_value.num = default_num;
+    default_value.size = default_size;
+
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_bufs_ctx_t),
+               offsetof(ngx_conf_condition_bufs_ctx_t, value),
+               sizeof(ngx_bufs_t),
+               offsetof(ngx_conf_condition_bufs_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_bufs_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_uint_t default_num, size_t default_size)
+{
+    ngx_bufs_t default_value;
+
+    default_value.num = default_num;
+    default_value.size = default_size;
+
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_bufs_ctx_t),
+               offsetof(ngx_conf_condition_bufs_ctx_t, value),
+               sizeof(ngx_bufs_t),
+               offsetof(ngx_conf_condition_bufs_ctx_t, expr_id),
+               &default_value);
+}
+
+
 static void *
 ngx_condition_prepare_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
     size_t element_size, size_t expr_id_offset,

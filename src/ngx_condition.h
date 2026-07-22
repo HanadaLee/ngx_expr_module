@@ -113,6 +113,11 @@ typedef struct {
 } ngx_conf_condition_str_ctx_t;
 
 typedef struct {
+    void                    *value;
+    ngx_condition_expr_id_t  expr_id;
+} ngx_conf_condition_ptr_ctx_t;
+
+typedef struct {
     ngx_array_t             *value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_str_array_ctx_t;
@@ -207,6 +212,52 @@ void *ngx_condition_find_expr_ctx(ngx_array_t *values,
 void *ngx_conf_get_conditional_ctx(void *data, ngx_array_t *values,
     size_t element_size, size_t expr_id_offset,
     ngx_condition_eval_pt eval);
+
+ngx_int_t ngx_conf_init_conditional_flag_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_flag_t default_value);
+ngx_int_t ngx_conf_merge_conditional_flag_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_flag_t default_value);
+ngx_int_t ngx_conf_init_conditional_str_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_str_t default_value);
+ngx_int_t ngx_conf_merge_conditional_str_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_str_t default_value);
+ngx_int_t ngx_conf_init_conditional_ptr_value(ngx_conf_t *cf,
+    ngx_array_t **values, void *default_value);
+ngx_int_t ngx_conf_merge_conditional_ptr_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, void *default_value);
+ngx_int_t ngx_conf_init_conditional_num_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_int_t default_value);
+ngx_int_t ngx_conf_merge_conditional_num_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_int_t default_value);
+ngx_int_t ngx_conf_init_conditional_size_value(ngx_conf_t *cf,
+    ngx_array_t **values, size_t default_value);
+ngx_int_t ngx_conf_merge_conditional_size_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, size_t default_value);
+ngx_int_t ngx_conf_init_conditional_off_value(ngx_conf_t *cf,
+    ngx_array_t **values, off_t default_value);
+ngx_int_t ngx_conf_merge_conditional_off_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, off_t default_value);
+ngx_int_t ngx_conf_init_conditional_msec_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_msec_t default_value);
+ngx_int_t ngx_conf_merge_conditional_msec_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_msec_t default_value);
+ngx_int_t ngx_conf_init_conditional_sec_value(ngx_conf_t *cf,
+    ngx_array_t **values, time_t default_value);
+ngx_int_t ngx_conf_merge_conditional_sec_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, time_t default_value);
+ngx_int_t ngx_conf_init_conditional_bufs_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_uint_t default_num, size_t default_size);
+ngx_int_t ngx_conf_merge_conditional_bufs_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_uint_t default_num,
+    size_t default_size);
+ngx_int_t ngx_conf_init_conditional_enum_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_uint_t default_value);
+ngx_int_t ngx_conf_merge_conditional_enum_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_uint_t default_value);
+ngx_int_t ngx_conf_init_conditional_bitmask_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_uint_t default_value);
+ngx_int_t ngx_conf_merge_conditional_bitmask_value(ngx_conf_t *cf,
+    ngx_array_t **values, ngx_array_t *prev, ngx_uint_t default_value);
 
 char *ngx_conf_set_conditional_flag_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);

@@ -100,6 +100,8 @@ ngx_http_condition_scalar_getter(ngx_http_get_conditional_bitmask_value,
         return (ctx != NULL) ? ctx->value : NULL;                            \
     }
 
+ngx_http_condition_pointer_getter(ngx_http_get_conditional_ptr_value,
+    void *, ngx_conf_condition_ptr_ctx_t)
 ngx_http_condition_pointer_getter(ngx_http_get_conditional_str_array_value,
     ngx_array_t *, ngx_conf_condition_str_array_ctx_t)
 ngx_http_condition_pointer_getter(ngx_http_get_conditional_keyval_value,
