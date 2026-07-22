@@ -60,8 +60,8 @@ be treated as evolving interfaces.
 - HTTP and Stream implementations with the same syntax and behavior.
 - Forward references, including references across configuration levels.
 - Per-reference negation and implicit AND in `when` blocks.
-- Logical, string, numeric, time, IP/CIDR, regular-expression, and optional
-  JSON predicates.
+- Boolean constants, logical, string, numeric, time, IP/CIDR,
+  regular-expression, and optional JSON predicates.
 - Same-scope repeated definitions combined with implicit OR.
 - Condition-aware replacements for common NGINX slot setters, merge/default
   helpers, and complex-value setters.
@@ -242,6 +242,16 @@ condition enabled not !configured;
 
 Logical references may also be forward references. Cycles are rejected while
 the effective configuration for each scope is finalized.
+
+#### Boolean constants
+
+```nginx
+condition name bool true;
+condition name bool false;
+```
+
+`bool` forces a condition to a constant result. Its value is case-sensitive
+and must be exactly `true` or `false`.
 
 #### Empty values
 

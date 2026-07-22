@@ -37,6 +37,7 @@ typedef struct {
 struct ngx_stream_condition_def_s {
     ngx_condition_op_e             op;
     unsigned                       ignore_case:1;
+    unsigned                       bool_value:1;
     ngx_stream_complex_value_t       values[3];
     ngx_array_t                   *terms;    /* ngx_condition_term_t */
     ngx_array_t                   *ip_items; /* ngx_condition_ip_item_t */
@@ -136,6 +137,7 @@ static ngx_stream_condition_operator_t  ngx_stream_condition_operators[] = {
     { ngx_string("not"), NGX_CONDITION_OP_NOT, 1, 1, 0 },
     { ngx_string("and"), NGX_CONDITION_OP_AND, 2, (ngx_uint_t) -1, 0 },
     { ngx_string("or"), NGX_CONDITION_OP_OR, 2, (ngx_uint_t) -1, 0 },
+    { ngx_string("bool"), NGX_CONDITION_OP_BOOL, 1, 1, 0 },
     { ngx_string("is_empty"), NGX_CONDITION_OP_IS_EMPTY, 1, 1, 0 },
     { ngx_string("is_not_empty"), NGX_CONDITION_OP_IS_NOT_EMPTY, 1, 1, 0 },
     { ngx_string("str_eq"), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
@@ -599,6 +601,28 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
         && operator->op <= NGX_CONDITION_OP_LOGIC_LAST)
     {
         return ngx_stream_condition_parse_logic(cf, cmcf, definition, first);
+    }
+
+    if (operator->op == NGX_CONDITION_OP_BOOL) {
+        if (value[first].len == 4
+            && ngx_strncmp(value[first].data, "true", 4) == 0)
+        {
+            definition->bool_value = 1;
+            return NGX_OK;
+        }
+
+        if (value[first].len == 5
+            && ngx_strncmp(value[first].data, "false", 5) == 0)
+        {
+            definition->bool_value = 0;
+            return NGX_OK;
+        }
+
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid bool value \"%V\"; "
+                           "expected \"true\" or \"false\"",
+                           &value[first]);
+        return NGX_ERROR;
     }
 
     if (operator->op == NGX_CONDITION_OP_TIME_RANGE) {
@@ -1115,6 +1139,10 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
         }
 
         return definition->op == NGX_CONDITION_OP_AND;
+    }
+
+    if (definition->op == NGX_CONDITION_OP_BOOL) {
+        return definition->bool_value;
     }
 
     if (definition->op == NGX_CONDITION_OP_TIME_RANGE) {
