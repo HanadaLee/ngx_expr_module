@@ -77,7 +77,7 @@ ngx_stream_condition_scalar_getter(ngx_stream_get_conditional_bitmask_value,
     ngx_uint_t, ngx_conf_condition_bitmask_ctx_t, 0)
 
 
-#define ngx_stream_condition_pointer_getter(name, type, ctx_type)           \
+#define ngx_stream_condition_pointer_getter(name, type, ctx_type)            \
     static ngx_inline type                                                   \
     name(ngx_stream_session_t *s, ngx_array_t *values)                       \
     {                                                                        \
@@ -101,11 +101,13 @@ ngx_stream_get_conditional_str_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_str_ctx_t *ctx;
+    size_t                        expr_id_offset;
 
+    expr_id_offset = offsetof(ngx_conf_condition_str_ctx_t, expr_id);
     ctx = ngx_conf_get_conditional_ctx(s, values,
-              sizeof(ngx_conf_condition_str_ctx_t),
-              offsetof(ngx_conf_condition_str_ctx_t, expr_id),
-              ngx_stream_condition_eval_expr);
+                                       sizeof(ngx_conf_condition_str_ctx_t),
+                                       expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? &ctx->value : NULL;
 }
@@ -116,11 +118,13 @@ ngx_stream_get_conditional_bufs_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_bufs_ctx_t *ctx;
+    size_t                         expr_id_offset;
 
+    expr_id_offset = offsetof(ngx_conf_condition_bufs_ctx_t, expr_id);
     ctx = ngx_conf_get_conditional_ctx(s, values,
-              sizeof(ngx_conf_condition_bufs_ctx_t),
-              offsetof(ngx_conf_condition_bufs_ctx_t, expr_id),
-              ngx_stream_condition_eval_expr);
+                                       sizeof(ngx_conf_condition_bufs_ctx_t),
+                                       expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? &ctx->value : NULL;
 }

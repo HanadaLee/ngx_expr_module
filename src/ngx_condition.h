@@ -108,60 +108,72 @@ typedef struct {
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_flag_ctx_t;
 
+
 typedef struct {
     ngx_str_t                value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_str_ctx_t;
+
 
 typedef struct {
     void                    *value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_ptr_ctx_t;
 
+
 typedef struct {
     ngx_array_t             *value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_str_array_ctx_t;
+
 
 typedef struct {
     ngx_array_t             *value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_keyval_ctx_t;
 
+
 typedef struct {
     ngx_int_t                value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_num_ctx_t;
+
 
 typedef struct {
     size_t                   value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_size_ctx_t;
 
+
 typedef struct {
     off_t                    value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_off_ctx_t;
+
 
 typedef struct {
     ngx_msec_t               value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_msec_ctx_t;
 
+
 typedef struct {
     time_t                   value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_sec_ctx_t;
+
 
 typedef struct {
     ngx_bufs_t               value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_bufs_ctx_t;
 
+
 typedef struct {
     ngx_uint_t               value;
     ngx_condition_expr_id_t  expr_id;
 } ngx_conf_condition_enum_ctx_t;
+
 
 typedef struct {
     ngx_uint_t               value;

@@ -309,6 +309,7 @@ ngx_condition_parse_number(ngx_str_t *value,
             if (dot != value->len) {
                 return NGX_ERROR;
             }
+
             dot = i;
             continue;
         }
@@ -426,6 +427,7 @@ ngx_condition_parse_uint_range(ngx_str_t *value, ngx_int_t *start,
         if (*start == NGX_ERROR) {
             return NGX_ERROR;
         }
+
         *end = *start;
         return NGX_OK;
     }
@@ -857,23 +859,23 @@ ngx_condition_merge_conditional_array(ngx_conf_t *cf, ngx_array_t **values,
 }
 
 
-#define ngx_condition_merge_helpers(name, type, ctx_type)                   \
-    ngx_int_t                                                               \
-    ngx_conf_init_conditional_##name##_value(ngx_conf_t *cf,                \
+#define ngx_condition_merge_helpers(name, type, ctx_type)                    \
+    ngx_int_t                                                                \
+    ngx_conf_init_conditional_##name##_value(ngx_conf_t *cf,                 \
         ngx_array_t **values, type default_value)                            \
     {                                                                        \
-        return ngx_condition_init_conditional_array(cf, values,             \
+        return ngx_condition_init_conditional_array(cf, values,              \
                    sizeof(ctx_type), offsetof(ctx_type, value),              \
                    sizeof(type), offsetof(ctx_type, expr_id),                \
                    &default_value);                                          \
     }                                                                        \
                                                                              \
                                                                              \
-    ngx_int_t                                                               \
-    ngx_conf_merge_conditional_##name##_value(ngx_conf_t *cf,               \
+    ngx_int_t                                                                \
+    ngx_conf_merge_conditional_##name##_value(ngx_conf_t *cf,                \
         ngx_array_t **values, ngx_array_t *prev, type default_value)         \
     {                                                                        \
-        return ngx_condition_merge_conditional_array(cf, values, prev,      \
+        return ngx_condition_merge_conditional_array(cf, values, prev,       \
                    sizeof(ctx_type), offsetof(ctx_type, value),              \
                    sizeof(type), offsetof(ctx_type, expr_id),                \
                    &default_value);                                          \
@@ -937,16 +939,18 @@ ngx_int_t
 ngx_conf_merge_conditional_ptr_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, void *default_value)
 {
-    size_t  element_size;
+    size_t  element_size, value_offset, expr_id_offset;
 
     element_size = ngx_condition_ptr_ctx_size(*values, prev);
+    value_offset = offsetof(ngx_conf_condition_ptr_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_ptr_ctx_t, expr_id);
 
     return ngx_condition_merge_conditional_array(cf, values, prev,
-               element_size,
-               offsetof(ngx_conf_condition_ptr_ctx_t, value),
-               sizeof(void *),
-               offsetof(ngx_conf_condition_ptr_ctx_t, expr_id),
-               &default_value);
+                                                 element_size,
+                                                 value_offset,
+                                                 sizeof(void *),
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 

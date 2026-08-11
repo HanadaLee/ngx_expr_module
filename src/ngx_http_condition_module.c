@@ -51,12 +51,12 @@ struct ngx_http_condition_def_s {
 typedef struct {
     ngx_condition_id_t             id;
     ngx_condition_op_e             type;
-    ngx_array_t                     definitions; /* ngx_http_condition_def_t * */
+    ngx_array_t                    definitions; /* definition pointers */
 } ngx_http_condition_scope_entry_t;
 
 
 typedef struct {
-    ngx_array_t                     entries; /* ngx_http_condition_scope_entry_t */
+    ngx_array_t                     entries; /* scope entries */
     ngx_http_condition_scope_entry_t **effective;
     ngx_uint_t                      effective_nelts;
     unsigned                        finalized:1;
@@ -352,12 +352,12 @@ ngx_http_condition_parse_logic(ngx_conf_t *cf,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
     ngx_str_t              name, *value;
-    ngx_uint_t             i, negative;
+    ngx_uint_t             i, n, negative;
     ngx_condition_term_t  *term;
     ngx_condition_name_t  *entry;
 
-    definition->terms = ngx_array_create(cf->pool, cf->args->nelts - first,
-                                          sizeof(ngx_condition_term_t));
+    n = cf->args->nelts - first;
+    definition->terms = ngx_array_create(cf->pool, n, sizeof(*term));
     if (definition->terms == NULL) {
         return NGX_ERROR;
     }
@@ -480,6 +480,7 @@ ngx_http_condition_parse_time(ngx_conf_t *cf,
         {
             return NGX_ERROR;
         }
+
         time->has_timestamp = 1;
         i++;
     }
@@ -492,9 +493,11 @@ ngx_http_condition_parse_time(ngx_conf_t *cf,
                                    "duplicate time zone \"%V\"", &value[i]);
                 return NGX_ERROR;
             }
+
             timezone_set = 1;
             continue;
         }
+
         if (rc == NGX_ERROR) {
             return NGX_ERROR;
         }
@@ -538,7 +541,7 @@ ngx_http_condition_parse_ip_range(ngx_conf_t *cf,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
     ngx_str_t                *value;
-    ngx_uint_t                i;
+    ngx_uint_t                i, n;
     ngx_condition_ip_item_t  *item;
 
     value = cf->args->elts;
@@ -549,9 +552,8 @@ ngx_http_condition_parse_ip_range(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    definition->ip_items = ngx_array_create(cf->pool,
-                               cf->args->nelts - first - 1,
-                               sizeof(ngx_condition_ip_item_t));
+    n = cf->args->nelts - first - 1;
+    definition->ip_items = ngx_array_create(cf->pool, n, sizeof(*item));
     if (definition->ip_items == NULL) {
         return NGX_ERROR;
     }
@@ -600,7 +602,8 @@ ngx_http_condition_parse_definition(ngx_conf_t *cf,
     argc = cf->args->nelts - first;
     if (argc < operator->min_args || argc > operator->max_args) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "invalid number of arguments for condition type \"%V\"",
+                           "invalid number of arguments for condition "
+                           "type \"%V\"",
                            &operator->name);
         return NGX_ERROR;
     }
@@ -684,13 +687,13 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_condition_loc_conf_t *clcf = conf;
 
-    ngx_str_t                         *value;
+    ngx_str_t                        *value;
     ngx_condition_id_t                condition_id;
-    ngx_http_condition_def_t          *definition, **slot;
-    ngx_condition_name_t              *name;
-    ngx_http_condition_main_conf_t    *cmcf;
-    ngx_http_condition_operator_t     *operator;
-    ngx_http_condition_scope_entry_t  *entry;
+    ngx_http_condition_def_t         *definition, **slot;
+    ngx_condition_name_t             *name;
+    ngx_http_condition_main_conf_t   *cmcf;
+    ngx_http_condition_operator_t    *operator;
+    ngx_http_condition_scope_entry_t *entry;
 
     (void) cmd;
 
@@ -704,6 +707,7 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (name == NULL) {
         return NGX_CONF_ERROR;
     }
+
     condition_id = name->id;
 
     operator = ngx_http_condition_find_operator(&value[2]);
@@ -716,7 +720,8 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     entry = ngx_http_condition_find_entry(clcf, condition_id);
     if (entry != NULL && entry->type != operator->op) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "condition \"%V\" has conflicting types \"%V\" and \"%V\" in the same scope",
+                           "condition \"%V\" has conflicting types \"%V\" "
+                           "and \"%V\" in the same scope",
                            &value[1],
                            &ngx_http_condition_operators[entry->type].name,
                            &operator->name);
@@ -754,6 +759,7 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (slot == NULL) {
         return NGX_CONF_ERROR;
     }
+
     *slot = definition;
     name = cmcf->registry.names.elts;
     name[condition_id].defined = 1;
@@ -772,7 +778,8 @@ ngx_http_condition_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_condition_name_t           *entry;
     ngx_condition_expr_id_t         expr_id, saved_expr_id;
     ngx_http_condition_main_conf_t *cmcf;
-    char                            *rv;
+    char                           *rv;
+    ngx_condition_registry_t       *registry;
 
     (void) cmd;
     (void) conf;
@@ -807,12 +814,13 @@ ngx_http_condition_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (term == NULL) {
             return NGX_CONF_ERROR;
         }
+
         term->condition_id = entry->id;
         term->negative = negative;
     }
 
-    expr_id = ngx_condition_get_or_create_when_expr(cf, &cmcf->registry,
-                                                     &terms);
+    registry = &cmcf->registry;
+    expr_id = ngx_condition_get_or_create_when_expr(cf, registry, &terms);
     if (expr_id == NGX_CONDITION_NO_EXPR_ID) {
         return NGX_CONF_ERROR;
     }
@@ -925,6 +933,7 @@ ngx_http_condition_finalize_scope(ngx_conf_t *cf,
     ngx_http_condition_loc_conf_t *conf,
     ngx_http_condition_loc_conf_t *parent)
 {
+    size_t                             size;
     ngx_uint_t                         i;
     ngx_http_condition_main_conf_t    *cmcf;
     ngx_http_condition_scope_entry_t  *entry;
@@ -941,9 +950,8 @@ ngx_http_condition_finalize_scope(ngx_conf_t *cf,
     conf->effective_nelts = cmcf->registry.names.nelts;
 
     if (conf->effective_nelts != 0) {
-        conf->effective = ngx_pcalloc(cf->pool,
-                              conf->effective_nelts
-                              * sizeof(ngx_http_condition_scope_entry_t *));
+        size = conf->effective_nelts * sizeof(*conf->effective);
+        conf->effective = ngx_pcalloc(cf->pool, size);
         if (conf->effective == NULL) {
             return NGX_ERROR;
         }
@@ -1043,6 +1051,7 @@ ngx_http_condition_eval_time(ngx_http_request_t *r,
 
     if (time->use_local_time) {
         ngx_localtime(now, &tm);
+
     } else {
         ngx_gmtime(now + time->gmt_offset, &tm);
     }
@@ -1110,13 +1119,15 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
 
         if (definition->op == NGX_CONDITION_OP_NOT) {
             cmp = ngx_http_condition_eval_id(r, cmcf, clcf,
-                                              term[0].condition_id, depth);
+                                             term[0].condition_id, depth);
             if (term[0].negative) {
                 cmp = !cmp;
             }
+
             cmp = !cmp;
             ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "condition logic, op:%ui ref:%ui negative:%ui result:%i depth:%ui",
+                           "condition logic, op:%ui ref:%ui negative:%ui "
+                           "result:%i depth:%ui",
                            definition->op, term[0].condition_id,
                            term[0].negative, cmp, depth);
             return cmp;
@@ -1124,14 +1135,16 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
 
         for (i = 0; i < definition->terms->nelts; i++) {
             cmp = ngx_http_condition_eval_id(r, cmcf, clcf,
-                                              term[i].condition_id, depth);
+                                             term[i].condition_id, depth);
             if (term[i].negative) {
                 cmp = !cmp;
             }
 
             if (definition->op == NGX_CONDITION_OP_AND && !cmp) {
                 ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                               "condition logic short circuit, op:%ui child:%ui ref:%ui negative:%ui result:%i depth:%ui",
+                               "condition logic short circuit, op:%ui "
+                               "child:%ui ref:%ui negative:%ui result:%i "
+                               "depth:%ui",
                                definition->op, i, term[i].condition_id,
                                term[i].negative, cmp, depth);
                 return 0;
@@ -1139,7 +1152,9 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
 
             if (definition->op == NGX_CONDITION_OP_OR && cmp) {
                 ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                               "condition logic short circuit, op:%ui child:%ui ref:%ui negative:%ui result:%i depth:%ui",
+                               "condition logic short circuit, op:%ui "
+                               "child:%ui ref:%ui negative:%ui result:%i "
+                               "depth:%ui",
                                definition->op, i, term[i].condition_id,
                                term[i].negative, cmp, depth);
                 return 1;
@@ -1186,6 +1201,7 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
         if (ngx_condition_parse_ip(&a, &ip) != NGX_OK) {
             return 0;
         }
+
         item = definition->ip_items->elts;
         for (i = 0; i < definition->ip_items->nelts; i++) {
             if (ngx_condition_ip_item_matches(&ip, &item[i])) {
@@ -1208,13 +1224,13 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
         return !ngx_condition_str_eq(&a, &b, definition->ignore_case);
     case NGX_CONDITION_OP_STR_STARTS_WITH:
         return ngx_condition_str_starts_with(&a, &b,
-                                              definition->ignore_case);
+                                             definition->ignore_case);
     case NGX_CONDITION_OP_STR_ENDS_WITH:
         return ngx_condition_str_ends_with(&a, &b,
-                                            definition->ignore_case);
+                                           definition->ignore_case);
     case NGX_CONDITION_OP_STR_CONTAINS:
         return ngx_condition_str_contains(&a, &b,
-                                           definition->ignore_case);
+                                          definition->ignore_case);
     default:
         break;
     }
@@ -1294,14 +1310,16 @@ ngx_http_condition_eval_id(ngx_http_request_t *r,
 
     for (i = 0; i < entry->definitions.nelts; i++) {
         result = ngx_http_condition_eval_definition(r, cmcf, clcf,
-                                                     definition[i], depth + 1);
+                                                    definition[i], depth + 1);
         ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "condition definition, id:%ui item:%ui type:%ui result:%i depth:%ui",
+                       "condition definition, id:%ui item:%ui type:%ui "
+                       "result:%i depth:%ui",
                        id, i, entry->type, result, depth);
 
         if (result) {
             ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "condition definitions OR short circuit, id:%ui item:%ui",
+                           "condition definitions OR short circuit, id:%ui "
+                           "item:%ui",
                            id, i);
             return 1;
         }
@@ -1364,7 +1382,8 @@ ngx_http_condition_get_expr_result(ngx_http_request_t *r,
         }
 
         ngx_log_debug7(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "condition expression, expr:%ui term:%ui id:%ui name:\"%V\" negative:%ui type:%ui result:%i",
+                       "condition expression, expr:%ui term:%ui id:%ui "
+                       "name:\"%V\" negative:%ui type:%ui result:%i",
                        expr_id, i, term[i].condition_id,
                        &name[term[i].condition_id].name, term[i].negative,
                        type, result);
@@ -1372,7 +1391,8 @@ ngx_http_condition_get_expr_result(ngx_http_request_t *r,
 
         if (!result) {
             ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "condition expression AND short circuit, expr:%ui term:%ui",
+                           "condition expression AND short circuit, expr:%ui "
+                           "term:%ui",
                            expr_id, i);
             return NGX_CONDITION_EXPR_MISS;
         }
@@ -1392,22 +1412,24 @@ ngx_http_condition_set_complex_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     ngx_uint_t                                 created;
     ngx_array_t                              **values;
     ngx_command_t                              local_cmd;
+    ngx_condition_expr_id_t                    expr_id;
     ngx_http_condition_complex_value_ctx_t    *ctx;
+    size_t                                     expr_id_offset;
 
     values = (ngx_array_t **) ((u_char *) conf + cmd->offset);
 
     if (*values == NULL || *values == NGX_CONF_UNSET_PTR) {
-        *values = ngx_array_create(cf->pool, 2,
-                     sizeof(ngx_http_condition_complex_value_ctx_t));
+        *values = ngx_array_create(cf->pool, 2, sizeof(*ctx));
         if (*values == NULL) {
             return NGX_CONF_ERROR;
         }
     }
 
-    ctx = ngx_condition_find_expr_ctx(*values,
-              ngx_condition_get_associated_expr_id(cf),
-              sizeof(ngx_http_condition_complex_value_ctx_t),
-              offsetof(ngx_http_condition_complex_value_ctx_t, expr_id));
+    expr_id = ngx_condition_get_associated_expr_id(cf);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t,
+                              expr_id);
+    ctx = ngx_condition_find_expr_ctx(*values, expr_id, sizeof(*ctx),
+                                      expr_id_offset);
 
     created = 0;
 
@@ -1441,7 +1463,7 @@ ngx_http_set_conditional_complex_value_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
     return ngx_http_condition_set_complex_slot(cf, cmd, conf,
-               ngx_http_set_complex_value_slot);
+                                               ngx_http_set_complex_value_slot);
 }
 
 
