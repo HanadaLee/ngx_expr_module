@@ -201,8 +201,8 @@ static ngx_http_module_t  ngx_http_condition_module_ctx = {
     NULL,                                      /* create server configuration */
     NULL,                                      /* merge server configuration */
 
-    ngx_http_condition_create_loc_conf,        /* create location configuration */
-    ngx_http_condition_merge_loc_conf          /* merge location configuration */
+    ngx_http_condition_create_loc_conf,        /* create location conf */
+    ngx_http_condition_merge_loc_conf          /* merge location conf */
 };
 
 
@@ -357,7 +357,8 @@ ngx_http_condition_parse_logic(ngx_conf_t *cf,
     ngx_condition_name_t  *entry;
 
     n = cf->args->nelts - first;
-    definition->terms = ngx_array_create(cf->pool, n, sizeof(*term));
+    definition->terms = ngx_array_create(cf->pool, n,
+                                         sizeof(ngx_condition_term_t));
     if (definition->terms == NULL) {
         return NGX_ERROR;
     }
@@ -553,7 +554,8 @@ ngx_http_condition_parse_ip_range(ngx_conf_t *cf,
     }
 
     n = cf->args->nelts - first - 1;
-    definition->ip_items = ngx_array_create(cf->pool, n, sizeof(*item));
+    definition->ip_items = ngx_array_create(cf->pool, n,
+                                            sizeof(ngx_condition_ip_item_t));
     if (definition->ip_items == NULL) {
         return NGX_ERROR;
     }
@@ -950,7 +952,8 @@ ngx_http_condition_finalize_scope(ngx_conf_t *cf,
     conf->effective_nelts = cmcf->registry.names.nelts;
 
     if (conf->effective_nelts != 0) {
-        size = conf->effective_nelts * sizeof(*conf->effective);
+        size = conf->effective_nelts
+               * sizeof(ngx_http_condition_scope_entry_t *);
         conf->effective = ngx_pcalloc(cf->pool, size);
         if (conf->effective == NULL) {
             return NGX_ERROR;
@@ -1419,7 +1422,8 @@ ngx_http_condition_set_complex_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     values = (ngx_array_t **) ((u_char *) conf + cmd->offset);
 
     if (*values == NULL || *values == NGX_CONF_UNSET_PTR) {
-        *values = ngx_array_create(cf->pool, 2, sizeof(*ctx));
+        *values = ngx_array_create(
+            cf->pool, 2, sizeof(ngx_http_condition_complex_value_ctx_t));
         if (*values == NULL) {
             return NGX_CONF_ERROR;
         }
@@ -1428,8 +1432,9 @@ ngx_http_condition_set_complex_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     expr_id = ngx_condition_get_associated_expr_id(cf);
     expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t,
                               expr_id);
-    ctx = ngx_condition_find_expr_ctx(*values, expr_id, sizeof(*ctx),
-                                      expr_id_offset);
+    ctx = ngx_condition_find_expr_ctx(
+        *values, expr_id, sizeof(ngx_http_condition_complex_value_ctx_t),
+        expr_id_offset);
 
     created = 0;
 
