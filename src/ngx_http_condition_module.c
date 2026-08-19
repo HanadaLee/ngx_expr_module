@@ -2,10 +2,6 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#if (NGX_CJSON)
-#include <cjson/cJSON.h>
-#endif
-
 #include "ngx_http_condition_module.h"
 
 
@@ -13,68 +9,54 @@ typedef struct ngx_http_condition_def_s  ngx_http_condition_def_t;
 
 
 typedef struct {
-    unsigned   set:1;
-    ngx_int_t  start;
-    ngx_int_t  end;
-} ngx_http_condition_range_t;
-
-
-typedef struct {
-    unsigned                    has_timestamp:1;
-    unsigned                    use_local_time:1;
-    ngx_http_complex_value_t    timestamp;
-    ngx_http_condition_range_t  year;
-    ngx_http_condition_range_t  month;
-    ngx_http_condition_range_t  day;
-    ngx_http_condition_range_t  wday;
-    ngx_http_condition_range_t  hour;
-    ngx_http_condition_range_t  min;
-    ngx_http_condition_range_t  sec;
-    ngx_int_t                   gmt_offset;
+    unsigned                           has_timestamp:1;
+    unsigned                           use_local_time:1;
+    ngx_http_complex_value_t           timestamp;
+    ngx_condition_range_t              year;
+    ngx_condition_range_t              month;
+    ngx_condition_range_t              day;
+    ngx_condition_range_t              wday;
+    ngx_condition_range_t              hour;
+    ngx_condition_range_t              min;
+    ngx_condition_range_t              sec;
+    ngx_int_t                          gmt_offset;
 } ngx_http_condition_time_t;
 
 
 struct ngx_http_condition_def_s {
-    ngx_condition_op_e             op;
-    unsigned                       ignore_case:1;
-    unsigned                       bool_value:1;
-    ngx_http_complex_value_t       values[3];
-    ngx_array_t                   *terms;    /* ngx_condition_term_t */
-    ngx_array_t                   *ip_items; /* ngx_condition_ip_item_t */
-    ngx_http_condition_time_t     *time;
+    ngx_condition_op_e                 op;
+    unsigned                           ignore_case:1;
+    unsigned                           bool_value:1;
+    unsigned                           negative:1;
+    ngx_http_complex_value_t           values[3];
+    ngx_array_t                       *list_values; /* complex values */
+    ngx_array_t                       *terms;       /* ngx_condition_term_t */
+    ngx_array_t                       *ip_items;    /* ngx_condition_ip_item_t */
+    ngx_http_condition_time_t         *time;
 #if (NGX_PCRE)
-    ngx_http_regex_t              *regex;
+    ngx_http_regex_t                  *regex;
 #endif
 };
 
 
 typedef struct {
-    ngx_condition_id_t             id;
-    ngx_condition_op_e             type;
-    ngx_array_t                    definitions; /* definition pointers */
+    ngx_condition_id_t                 id;
+    ngx_condition_op_e                 type;
+    ngx_array_t                        definitions; /* definition pointers */
 } ngx_http_condition_scope_entry_t;
 
 
 typedef struct {
-    ngx_array_t                     entries; /* scope entries */
+    ngx_array_t                        entries;     /* scope entries */
     ngx_http_condition_scope_entry_t **effective;
-    ngx_uint_t                      effective_nelts;
-    unsigned                        finalized:1;
+    ngx_uint_t                         effective_nelts;
+    unsigned                           finalized:1;
 } ngx_http_condition_loc_conf_t;
 
 
 typedef struct {
-    ngx_condition_registry_t        registry;
+    ngx_condition_registry_t           registry;
 } ngx_http_condition_main_conf_t;
-
-
-typedef struct {
-    ngx_str_t                       name;
-    ngx_condition_op_e              op;
-    ngx_uint_t                      min_args;
-    ngx_uint_t                      max_args;
-    unsigned                        allow_ignore_case:1;
-} ngx_http_condition_operator_t;
 
 
 static void *ngx_http_condition_create_main_conf(ngx_conf_t *cf);
@@ -88,15 +70,13 @@ static char *ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd,
 static char *ngx_http_condition_when(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-static ngx_http_condition_operator_t *ngx_http_condition_find_operator(
-    ngx_str_t *name);
 static ngx_http_condition_scope_entry_t *ngx_http_condition_find_entry(
     ngx_http_condition_loc_conf_t *conf, ngx_condition_id_t id);
 static ngx_int_t ngx_http_condition_compile_value(ngx_conf_t *cf,
     ngx_str_t *value, ngx_http_complex_value_t *complex_value);
 static ngx_int_t ngx_http_condition_parse_definition(ngx_conf_t *cf,
     ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_operator_t *operator,
+    const ngx_condition_operator_t *operator,
     ngx_http_condition_def_t *definition, ngx_uint_t first);
 static ngx_int_t ngx_http_condition_parse_logic(ngx_conf_t *cf,
     ngx_http_condition_main_conf_t *cmcf,
@@ -127,48 +107,6 @@ static ngx_int_t ngx_http_condition_eval_definition(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_eval_time(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition);
-
-static char *ngx_http_condition_set_complex_slot(ngx_conf_t *cf,
-    ngx_command_t *cmd, void *conf,
-    char *(*setter)(ngx_conf_t *, ngx_command_t *, void *));
-
-
-static ngx_http_condition_operator_t  ngx_http_condition_operators[] = {
-    { ngx_string("not"), NGX_CONDITION_OP_NOT, 1, 1, 0 },
-    { ngx_string("and"), NGX_CONDITION_OP_AND, 2, (ngx_uint_t) -1, 0 },
-    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, (ngx_uint_t) -1, 0 },
-    { ngx_string("bool"), NGX_CONDITION_OP_BOOL, 1, 1, 0 },
-    { ngx_string("is_empty"), NGX_CONDITION_OP_IS_EMPTY, 1, 1, 0 },
-    { ngx_string("is_not_empty"), NGX_CONDITION_OP_IS_NOT_EMPTY, 1, 1, 0 },
-    { ngx_string("str_eq"), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
-    { ngx_string("str_ne"), NGX_CONDITION_OP_STR_NE, 2, 2, 1 },
-    { ngx_string("str_starts_with"), NGX_CONDITION_OP_STR_STARTS_WITH,
-      2, 2, 1 },
-    { ngx_string("str_ends_with"), NGX_CONDITION_OP_STR_ENDS_WITH,
-      2, 2, 1 },
-    { ngx_string("str_contains"), NGX_CONDITION_OP_STR_CONTAINS,
-      2, 2, 1 },
-    { ngx_string("str_regex_match"), NGX_CONDITION_OP_STR_REGEX_MATCH,
-      2, 2, 1 },
-    { ngx_string("is_num"), NGX_CONDITION_OP_IS_NUM, 1, 1, 0 },
-    { ngx_string("num_eq"), NGX_CONDITION_OP_NUM_EQ, 2, 2, 0 },
-    { ngx_string("num_ne"), NGX_CONDITION_OP_NUM_NE, 2, 2, 0 },
-    { ngx_string("num_lt"), NGX_CONDITION_OP_NUM_LT, 2, 2, 0 },
-    { ngx_string("num_le"), NGX_CONDITION_OP_NUM_LE, 2, 2, 0 },
-    { ngx_string("num_gt"), NGX_CONDITION_OP_NUM_GT, 2, 2, 0 },
-    { ngx_string("num_ge"), NGX_CONDITION_OP_NUM_GE, 2, 2, 0 },
-    { ngx_string("num_range"), NGX_CONDITION_OP_NUM_RANGE, 2, 3, 0 },
-    { ngx_string("time_range"), NGX_CONDITION_OP_TIME_RANGE, 0, 9, 0 },
-    { ngx_string("is_ip"), NGX_CONDITION_OP_IS_IP, 1, 1, 0 },
-    { ngx_string("is_cidr"), NGX_CONDITION_OP_IS_CIDR, 1, 1, 0 },
-    { ngx_string("ip_range"), NGX_CONDITION_OP_IP_RANGE,
-      2, (ngx_uint_t) -1, 0 },
-#if (NGX_CJSON)
-    { ngx_string("is_json"), NGX_CONDITION_OP_IS_JSON, 1, 1, 0 },
-#endif
-    { ngx_null_string, NGX_CONDITION_OP_INVALID, 0, 0, 0 }
-};
-
 
 static ngx_command_t  ngx_http_condition_commands[] = {
 
@@ -292,24 +230,6 @@ ngx_http_condition_create_loc_conf(ngx_conf_t *cf)
 }
 
 
-static ngx_http_condition_operator_t *
-ngx_http_condition_find_operator(ngx_str_t *name)
-{
-    ngx_uint_t i;
-
-    for (i = 0; ngx_http_condition_operators[i].name.len; i++) {
-        if (ngx_http_condition_operators[i].name.len == name->len
-            && ngx_strncmp(ngx_http_condition_operators[i].name.data,
-                           name->data, name->len) == 0)
-        {
-            return &ngx_http_condition_operators[i];
-        }
-    }
-
-    return NULL;
-}
-
-
 static ngx_http_condition_scope_entry_t *
 ngx_http_condition_find_entry(ngx_http_condition_loc_conf_t *conf,
     ngx_condition_id_t id)
@@ -351,10 +271,7 @@ ngx_http_condition_parse_logic(ngx_conf_t *cf,
     ngx_http_condition_main_conf_t *cmcf,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_str_t              name, *value;
-    ngx_uint_t             i, n, negative;
-    ngx_condition_term_t  *term;
-    ngx_condition_name_t  *entry;
+    ngx_uint_t  n;
 
     n = cf->args->nelts - first;
     definition->terms = ngx_array_create(cf->pool, n,
@@ -363,91 +280,8 @@ ngx_http_condition_parse_logic(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    value = cf->args->elts;
-
-    for (i = first; i < cf->args->nelts; i++) {
-        name = value[i];
-        negative = (name.len != 0 && name.data[0] == '!');
-        if (negative) {
-            name.data++;
-            name.len--;
-        }
-
-        entry = ngx_condition_get_or_create_name(cf, &cmcf->registry, &name);
-        if (entry == NULL) {
-            return NGX_ERROR;
-        }
-
-        term = ngx_array_push(definition->terms);
-        if (term == NULL) {
-            return NGX_ERROR;
-        }
-
-        term->condition_id = entry->id;
-        term->negative = negative;
-    }
-
-    return NGX_OK;
-}
-
-
-static ngx_int_t
-ngx_http_condition_set_time_range(ngx_conf_t *cf,
-    ngx_http_condition_range_t *range, ngx_str_t *value,
-    ngx_int_t minimum, ngx_int_t maximum, const char *field)
-{
-    if (range->set
-        || ngx_condition_parse_uint_range(value, &range->start,
-                                          &range->end) != NGX_OK
-        || range->start < minimum || range->end > maximum)
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "invalid or duplicate %s range \"%V\"",
-                           field, value);
-        return NGX_ERROR;
-    }
-
-    range->set = 1;
-    return NGX_OK;
-}
-
-
-static ngx_int_t
-ngx_http_condition_parse_timezone(ngx_conf_t *cf,
-    ngx_http_condition_time_t *time, ngx_str_t *value)
-{
-    ngx_int_t hours, minutes, sign;
-
-    if (value->len == 3
-        && ngx_strncmp(value->data, "gmt", 3) == 0)
-    {
-        time->use_local_time = 0;
-        time->gmt_offset = 0;
-        return NGX_OK;
-    }
-
-    if (value->len != 8
-        || ngx_strncmp(value->data, "gmt", 3) != 0
-        || (value->data[3] != '+' && value->data[3] != '-'))
-    {
-        return NGX_DECLINED;
-    }
-
-    hours = ngx_atoi(value->data + 4, 2);
-    minutes = ngx_atoi(value->data + 6, 2);
-    if (hours == NGX_ERROR || minutes == NGX_ERROR
-        || hours > 23 || minutes > 59)
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "invalid time zone \"%V\"", value);
-        return NGX_ERROR;
-    }
-
-    sign = (value->data[3] == '-') ? -1 : 1;
-    time->use_local_time = 0;
-    time->gmt_offset = sign * (hours * 3600 + minutes * 60);
-
-    return NGX_OK;
+    return ngx_condition_parse_terms(cf, &cmcf->registry, first,
+                                     definition->terms);
 }
 
 
@@ -456,7 +290,7 @@ ngx_http_condition_parse_time(ngx_conf_t *cf,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
     ngx_str_t                  part, *value;
-    ngx_int_t                  rc;
+    ngx_int_t                  gmt_offset, rc;
     ngx_uint_t                 i, timezone_set;
     ngx_http_condition_time_t *time;
 
@@ -487,7 +321,7 @@ ngx_http_condition_parse_time(ngx_conf_t *cf,
     }
 
     for (; i < cf->args->nelts; i++) {
-        rc = ngx_http_condition_parse_timezone(cf, time, &value[i]);
+        rc = ngx_condition_parse_timezone(cf, &value[i], &gmt_offset);
         if (rc == NGX_OK) {
             if (timezone_set) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -496,6 +330,8 @@ ngx_http_condition_parse_time(ngx_conf_t *cf,
             }
 
             timezone_set = 1;
+            time->use_local_time = 0;
+            time->gmt_offset = gmt_offset;
             continue;
         }
 
@@ -509,8 +345,8 @@ ngx_http_condition_parse_time(ngx_conf_t *cf,
         {                                                                    \
             part.data = value[i].data + sizeof(prefix) - 1;                  \
             part.len = value[i].len - (sizeof(prefix) - 1);                  \
-            if (ngx_http_condition_set_time_range(cf, &time->member, &part,  \
-                                                   low, high, prefix)        \
+            if (ngx_condition_set_time_range(cf, &time->member, &part,       \
+                                              low, high, prefix)             \
                 != NGX_OK)                                                   \
             {                                                                \
                 return NGX_ERROR;                                            \
@@ -541,9 +377,7 @@ static ngx_int_t
 ngx_http_condition_parse_ip_range(ngx_conf_t *cf,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_str_t                *value;
-    ngx_uint_t                i, n;
-    ngx_condition_ip_item_t  *item;
+    ngx_str_t  *value;
 
     value = cf->args->elts;
 
@@ -553,38 +387,20 @@ ngx_http_condition_parse_ip_range(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    n = cf->args->nelts - first - 1;
-    definition->ip_items = ngx_array_create(cf->pool, n,
-                                            sizeof(ngx_condition_ip_item_t));
-    if (definition->ip_items == NULL) {
-        return NGX_ERROR;
-    }
-
-    for (i = first + 1; i < cf->args->nelts; i++) {
-        item = ngx_array_push(definition->ip_items);
-        if (item == NULL) {
-            return NGX_ERROR;
-        }
-
-        if (ngx_condition_parse_ip_item(&value[i], item) != NGX_OK) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "invalid IP item \"%V\"", &value[i]);
-            return NGX_ERROR;
-        }
-    }
-
-    return NGX_OK;
+    return ngx_condition_parse_ip_items(cf, first + 1,
+                                        &definition->ip_items);
 }
 
 
 static ngx_int_t
 ngx_http_condition_parse_definition(ngx_conf_t *cf,
     ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_operator_t *operator,
+    const ngx_condition_operator_t *operator,
     ngx_http_condition_def_t *definition, ngx_uint_t first)
 {
     ngx_str_t                  *value;
     ngx_uint_t                  argc, i;
+    ngx_http_complex_value_t   *list_value;
 #if (NGX_PCRE)
     u_char                      errstr[NGX_MAX_CONF_ERRSTR];
     ngx_regex_compile_t         rc;
@@ -592,6 +408,12 @@ ngx_http_condition_parse_definition(ngx_conf_t *cf,
 
     value = cf->args->elts;
     definition->op = operator->op;
+
+    if (operator->name.len == 2
+        && ngx_strncmp(operator->name.data, "~*", 2) == 0)
+    {
+        definition->ignore_case = 1;
+    }
 
     if (operator->allow_ignore_case && first < cf->args->nelts
         && value[first].len == 2
@@ -646,6 +468,37 @@ ngx_http_condition_parse_definition(ngx_conf_t *cf,
         return ngx_http_condition_parse_ip_range(cf, definition, first);
     }
 
+    if (operator->op == NGX_CONDITION_OP_STR_IN
+        || operator->op == NGX_CONDITION_OP_NUM_IN)
+    {
+        if (ngx_http_condition_compile_value(cf, &value[first],
+                                             &definition->values[0]) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        definition->list_values = ngx_array_create(
+            cf->pool, argc - 1, sizeof(ngx_http_complex_value_t));
+        if (definition->list_values == NULL) {
+            return NGX_ERROR;
+        }
+
+        for (i = 1; i < argc; i++) {
+            list_value = ngx_array_push(definition->list_values);
+            if (list_value == NULL) {
+                return NGX_ERROR;
+            }
+
+            if (ngx_http_condition_compile_value(cf, &value[first + i],
+                                                 list_value) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+        }
+
+        return NGX_OK;
+    }
+
     if (operator->op == NGX_CONDITION_OP_STR_REGEX_MATCH) {
 #if (NGX_PCRE)
         if (ngx_http_condition_compile_value(cf, &value[first],
@@ -694,8 +547,9 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_condition_def_t         *definition, **slot;
     ngx_condition_name_t             *name;
     ngx_http_condition_main_conf_t   *cmcf;
-    ngx_http_condition_operator_t    *operator;
+    const ngx_condition_operator_t  *modifier, *operator;
     ngx_http_condition_scope_entry_t *entry;
+    ngx_uint_t                        first, modifier_negative, negative;
 
     (void) cmd;
 
@@ -712,11 +566,24 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     condition_id = name->id;
 
-    operator = ngx_http_condition_find_operator(&value[2]);
+    first = 3;
+    operator = ngx_condition_find_operator(&value[2], &negative);
     if (operator == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "unsupported condition type \"%V\"", &value[2]);
         return NGX_CONF_ERROR;
+    }
+
+    if (operator->op == NGX_CONDITION_OP_NOT && cf->args->nelts > 3) {
+        modifier = ngx_condition_find_operator(&value[3],
+                                               &modifier_negative);
+        if (modifier != NULL
+            && modifier->op > NGX_CONDITION_OP_LOGIC_LAST)
+        {
+            operator = modifier;
+            negative = !modifier_negative;
+            first = 4;
+        }
     }
 
     entry = ngx_http_condition_find_entry(clcf, condition_id);
@@ -725,7 +592,7 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                            "condition \"%V\" has conflicting types \"%V\" "
                            "and \"%V\" in the same scope",
                            &value[1],
-                           &ngx_http_condition_operators[entry->type].name,
+                           &ngx_condition_operators[entry->type].name,
                            &operator->name);
         return NGX_CONF_ERROR;
     }
@@ -735,7 +602,10 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    if (ngx_http_condition_parse_definition(cf, cmcf, operator, definition, 3)
+    definition->negative = negative;
+
+    if (ngx_http_condition_parse_definition(cf, cmcf, operator, definition,
+                                            first)
         != NGX_OK)
     {
         return NGX_CONF_ERROR;
@@ -773,11 +643,8 @@ ngx_http_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 ngx_http_condition_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_str_t                       name, *value;
-    ngx_uint_t                      i, negative, saved_cmd_type, when_type;
+    ngx_uint_t                      saved_cmd_type, when_type;
     ngx_array_t                     terms;
-    ngx_condition_term_t           *term;
-    ngx_condition_name_t           *entry;
     ngx_condition_expr_id_t         expr_id, saved_expr_id;
     ngx_http_condition_main_conf_t *cmcf;
     char                           *rv;
@@ -797,32 +664,12 @@ ngx_http_condition_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    value = cf->args->elts;
-
-    for (i = 1; i < cf->args->nelts; i++) {
-        name = value[i];
-        negative = (name.len != 0 && name.data[0] == '!');
-        if (negative) {
-            name.data++;
-            name.len--;
-        }
-
-        entry = ngx_condition_get_or_create_name(cf, &cmcf->registry, &name);
-        if (entry == NULL) {
-            return NGX_CONF_ERROR;
-        }
-
-        term = ngx_array_push(&terms);
-        if (term == NULL) {
-            return NGX_CONF_ERROR;
-        }
-
-        term->condition_id = entry->id;
-        term->negative = negative;
+    if (ngx_condition_parse_terms(cf, &cmcf->registry, 1, &terms) != NGX_OK) {
+        return NGX_CONF_ERROR;
     }
 
     registry = &cmcf->registry;
-    expr_id = ngx_condition_get_or_create_when_expr(cf, registry, &terms);
+    expr_id = ngx_condition_get_when_expr(cf, registry, &terms);
     if (expr_id == NGX_CONDITION_NO_EXPR_ID) {
         return NGX_CONF_ERROR;
     }
@@ -1022,10 +869,10 @@ ngx_http_condition_postconfiguration(ngx_conf_t *cf)
 
 
 static ngx_int_t
-ngx_http_condition_range_matches(ngx_http_condition_range_t *range,
-    ngx_int_t value)
+ngx_http_condition_apply_negation(ngx_http_condition_def_t *definition,
+    ngx_int_t result)
 {
-    return !range->set || (value >= range->start && value <= range->end);
+    return definition->negative ? !result : result;
 }
 
 
@@ -1059,47 +906,16 @@ ngx_http_condition_eval_time(ngx_http_request_t *r,
         ngx_gmtime(now + time->gmt_offset, &tm);
     }
 
-    return ngx_http_condition_range_matches(&time->year, tm.ngx_tm_year)
-           && ngx_http_condition_range_matches(&time->month, tm.ngx_tm_mon)
-           && ngx_http_condition_range_matches(&time->day, tm.ngx_tm_mday)
-           && ngx_http_condition_range_matches(&time->wday, tm.ngx_tm_wday)
-           && ngx_http_condition_range_matches(&time->hour, tm.ngx_tm_hour)
-           && ngx_http_condition_range_matches(&time->min, tm.ngx_tm_min)
-           && ngx_http_condition_range_matches(&time->sec, tm.ngx_tm_sec);
+    return ngx_http_condition_apply_negation(
+        definition,
+        ngx_condition_range_matches(&time->year, tm.ngx_tm_year)
+        && ngx_condition_range_matches(&time->month, tm.ngx_tm_mon)
+        && ngx_condition_range_matches(&time->day, tm.ngx_tm_mday)
+        && ngx_condition_range_matches(&time->wday, tm.ngx_tm_wday)
+        && ngx_condition_range_matches(&time->hour, tm.ngx_tm_hour)
+        && ngx_condition_range_matches(&time->min, tm.ngx_tm_min)
+        && ngx_condition_range_matches(&time->sec, tm.ngx_tm_sec));
 }
-
-
-#if (NGX_CJSON)
-static ngx_int_t
-ngx_http_condition_is_json(ngx_str_t *value)
-{
-    const char *end;
-    cJSON      *json;
-
-    if (value->len == 0) {
-        return 0;
-    }
-
-    end = NULL;
-    json = cJSON_ParseWithLengthOpts((const char *) value->data, value->len,
-                                     &end, 0);
-    if (json == NULL || end == NULL) {
-        if (json != NULL) {
-            cJSON_Delete(json);
-        }
-        return 0;
-    }
-
-    while (end < (const char *) value->data + value->len
-           && (*end == ' ' || *end == '\t' || *end == CR || *end == LF))
-    {
-        end++;
-    }
-
-    cJSON_Delete(json);
-    return end == (const char *) value->data + value->len;
-}
-#endif
 
 
 static ngx_int_t
@@ -1108,12 +924,13 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
     ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
-    ngx_str_t                 a, b, zero;
-    ngx_int_t                 cmp;
-    ngx_uint_t                i;
-    ngx_condition_term_t     *term;
-    ngx_condition_ip_t        ip;
-    ngx_condition_ip_item_t  *item;
+    ngx_str_t                  a, b, zero;
+    ngx_int_t                  cmp;
+    ngx_uint_t                 i;
+    ngx_condition_term_t      *term;
+    ngx_condition_ip_t         ip;
+    ngx_condition_ip_item_t   *item;
+    ngx_http_complex_value_t  *list_value;
 
     if (definition->op >= NGX_CONDITION_OP_LOGIC_FIRST
         && definition->op <= NGX_CONDITION_OP_LOGIC_LAST)
@@ -1168,7 +985,8 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
     }
 
     if (definition->op == NGX_CONDITION_OP_BOOL) {
-        return definition->bool_value;
+        return ngx_http_condition_apply_negation(definition,
+                                                 definition->bool_value);
     }
 
     if (definition->op == NGX_CONDITION_OP_TIME_RANGE) {
@@ -1181,22 +999,29 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
 
     switch (definition->op) {
     case NGX_CONDITION_OP_IS_EMPTY:
-        return a.len == 0;
-    case NGX_CONDITION_OP_IS_NOT_EMPTY:
-        return a.len != 0;
+        return ngx_http_condition_apply_negation(definition, a.len == 0);
     case NGX_CONDITION_OP_IS_NUM:
-        return ngx_condition_is_number(&a);
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_is_number(&a));
     case NGX_CONDITION_OP_IS_IP:
-        return ngx_condition_parse_ip(&a, &ip) == NGX_OK;
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_parse_ip(&a, &ip) == NGX_OK);
     case NGX_CONDITION_OP_IS_CIDR:
-        return ngx_condition_is_cidr(&a);
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_is_cidr(&a));
 #if (NGX_CJSON)
     case NGX_CONDITION_OP_IS_JSON:
-        return ngx_http_condition_is_json(&a);
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_is_json(&a));
 #endif
     case NGX_CONDITION_OP_STR_REGEX_MATCH:
 #if (NGX_PCRE)
-        return ngx_http_regex_exec(r, definition->regex, &a) >= 0;
+        cmp = ngx_http_regex_exec(r, definition->regex, &a);
+        if (cmp == NGX_ERROR) {
+            return 0;
+        }
+
+        return ngx_http_condition_apply_negation(definition, cmp >= 0);
 #else
         return 0;
 #endif
@@ -1208,12 +1033,42 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
         item = definition->ip_items->elts;
         for (i = 0; i < definition->ip_items->nelts; i++) {
             if (ngx_condition_ip_item_matches(&ip, &item[i])) {
-                return 1;
+                return ngx_http_condition_apply_negation(definition, 1);
             }
         }
-        return 0;
+        return ngx_http_condition_apply_negation(definition, 0);
     default:
         break;
+    }
+
+    if (definition->op == NGX_CONDITION_OP_STR_IN
+        || definition->op == NGX_CONDITION_OP_NUM_IN)
+    {
+        list_value = definition->list_values->elts;
+
+        for (i = 0; i < definition->list_values->nelts; i++) {
+            if (ngx_http_complex_value(r, &list_value[i], &b) != NGX_OK) {
+                return 0;
+            }
+
+            if (definition->op == NGX_CONDITION_OP_STR_IN) {
+                if (ngx_condition_str_eq(&a, &b, definition->ignore_case)) {
+                    return ngx_http_condition_apply_negation(definition, 1);
+                }
+
+                continue;
+            }
+
+            if (ngx_condition_compare_numbers(&a, &b, &cmp) != NGX_OK) {
+                return 0;
+            }
+
+            if (cmp == 0) {
+                return ngx_http_condition_apply_negation(definition, 1);
+            }
+        }
+
+        return ngx_http_condition_apply_negation(definition, 0);
     }
 
     if (ngx_http_complex_value(r, &definition->values[1], &b) != NGX_OK) {
@@ -1222,18 +1077,21 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
 
     switch (definition->op) {
     case NGX_CONDITION_OP_STR_EQ:
-        return ngx_condition_str_eq(&a, &b, definition->ignore_case);
-    case NGX_CONDITION_OP_STR_NE:
-        return !ngx_condition_str_eq(&a, &b, definition->ignore_case);
+        return ngx_http_condition_apply_negation(
+            definition,
+            ngx_condition_str_eq(&a, &b, definition->ignore_case));
     case NGX_CONDITION_OP_STR_STARTS_WITH:
-        return ngx_condition_str_starts_with(&a, &b,
-                                             definition->ignore_case);
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_str_starts_with(
+                &a, &b, definition->ignore_case));
     case NGX_CONDITION_OP_STR_ENDS_WITH:
-        return ngx_condition_str_ends_with(&a, &b,
-                                           definition->ignore_case);
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_str_ends_with(
+                &a, &b, definition->ignore_case));
     case NGX_CONDITION_OP_STR_CONTAINS:
-        return ngx_condition_str_contains(&a, &b,
-                                          definition->ignore_case);
+        return ngx_http_condition_apply_negation(
+            definition, ngx_condition_str_contains(
+                &a, &b, definition->ignore_case));
     default:
         break;
     }
@@ -1250,7 +1108,7 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
                 return 0;
             }
 
-            return cmp <= 0;
+            return ngx_http_condition_apply_negation(definition, cmp <= 0);
         }
 
         if (ngx_condition_compare_numbers(&a, &b, &cmp) != NGX_OK
@@ -1261,7 +1119,7 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
             return 0;
         }
 
-        return cmp <= 0;
+        return ngx_http_condition_apply_negation(definition, cmp <= 0);
     }
 
     if (ngx_condition_compare_numbers(&a, &b, &cmp) != NGX_OK) {
@@ -1270,17 +1128,15 @@ ngx_http_condition_eval_definition(ngx_http_request_t *r,
 
     switch (definition->op) {
     case NGX_CONDITION_OP_NUM_EQ:
-        return cmp == 0;
-    case NGX_CONDITION_OP_NUM_NE:
-        return cmp != 0;
+        return ngx_http_condition_apply_negation(definition, cmp == 0);
     case NGX_CONDITION_OP_NUM_LT:
-        return cmp < 0;
+        return ngx_http_condition_apply_negation(definition, cmp < 0);
     case NGX_CONDITION_OP_NUM_LE:
-        return cmp <= 0;
+        return ngx_http_condition_apply_negation(definition, cmp <= 0);
     case NGX_CONDITION_OP_NUM_GT:
-        return cmp > 0;
+        return ngx_http_condition_apply_negation(definition, cmp > 0);
     case NGX_CONDITION_OP_NUM_GE:
-        return cmp >= 0;
+        return ngx_http_condition_apply_negation(definition, cmp >= 0);
     default:
         return 0;
     }
@@ -1407,68 +1263,15 @@ ngx_http_condition_get_expr_result(ngx_http_request_t *r,
 }
 
 
-static char *
-ngx_http_condition_set_complex_slot(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf, char *(*setter)(ngx_conf_t *, ngx_command_t *, void *))
-{
-    char                                      *rv;
-    ngx_uint_t                                 created;
-    ngx_array_t                              **values;
-    ngx_command_t                              local_cmd;
-    ngx_condition_expr_id_t                    expr_id;
-    ngx_http_condition_complex_value_ctx_t    *ctx;
-    size_t                                     expr_id_offset;
-
-    values = (ngx_array_t **) ((u_char *) conf + cmd->offset);
-
-    if (*values == NULL || *values == NGX_CONF_UNSET_PTR) {
-        *values = ngx_array_create(
-            cf->pool, 2, sizeof(ngx_http_condition_complex_value_ctx_t));
-        if (*values == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    expr_id = ngx_condition_get_associated_expr_id(cf);
-    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t,
-                              expr_id);
-    ctx = ngx_condition_find_expr_ctx(
-        *values, expr_id, sizeof(ngx_http_condition_complex_value_ctx_t),
-        expr_id_offset);
-
-    created = 0;
-
-    if (ctx == NULL) {
-        ctx = ngx_array_push(*values);
-        if (ctx == NULL) {
-            return NGX_CONF_ERROR;
-        }
-
-        ctx->value = NGX_CONF_UNSET_PTR;
-        ctx->expr_id = ngx_condition_get_associated_expr_id(cf);
-        created = 1;
-    }
-
-    local_cmd = *cmd;
-    local_cmd.offset = offsetof(ngx_http_condition_complex_value_ctx_t,
-                                value);
-
-    rv = setter(cf, &local_cmd, ctx);
-
-    if (rv != NGX_CONF_OK && created) {
-        (*values)->nelts--;
-    }
-
-    return rv;
-}
-
-
 char *
 ngx_http_set_conditional_complex_value_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_http_condition_set_complex_slot(cf, cmd, conf,
-                                               ngx_http_set_complex_value_slot);
+    return ngx_condition_call_ptr_slot(cf, cmd, conf,
+               sizeof(ngx_http_condition_complex_value_ctx_t),
+               offsetof(ngx_http_condition_complex_value_ctx_t, value),
+               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
+               ngx_http_set_complex_value_slot);
 }
 
 
@@ -1476,7 +1279,10 @@ char *
 ngx_http_set_conditional_complex_value_zero_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_http_condition_set_complex_slot(cf, cmd, conf,
+    return ngx_condition_call_ptr_slot(cf, cmd, conf,
+               sizeof(ngx_http_condition_complex_value_ctx_t),
+               offsetof(ngx_http_condition_complex_value_ctx_t, value),
+               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
                ngx_http_set_complex_value_zero_slot);
 }
 
@@ -1485,7 +1291,10 @@ char *
 ngx_http_set_conditional_complex_value_size_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_http_condition_set_complex_slot(cf, cmd, conf,
+    return ngx_condition_call_ptr_slot(cf, cmd, conf,
+               sizeof(ngx_http_condition_complex_value_ctx_t),
+               offsetof(ngx_http_condition_complex_value_ctx_t, value),
+               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
                ngx_http_set_complex_value_size_slot);
 }
 
@@ -1496,7 +1305,10 @@ char *
 ngx_http_set_conditional_complex_value_msec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_http_condition_set_complex_slot(cf, cmd, conf,
+    return ngx_condition_call_ptr_slot(cf, cmd, conf,
+               sizeof(ngx_http_condition_complex_value_ctx_t),
+               offsetof(ngx_http_condition_complex_value_ctx_t, value),
+               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
                ngx_http_set_complex_value_msec_slot);
 }
 
@@ -1505,7 +1317,10 @@ char *
 ngx_http_set_conditional_complex_value_sec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_http_condition_set_complex_slot(cf, cmd, conf,
+    return ngx_condition_call_ptr_slot(cf, cmd, conf,
+               sizeof(ngx_http_condition_complex_value_ctx_t),
+               offsetof(ngx_http_condition_complex_value_ctx_t, value),
+               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
                ngx_http_set_complex_value_sec_slot);
 }
 

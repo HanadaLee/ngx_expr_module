@@ -1,25 +1,14 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#if (NGX_CJSON)
+#include <cjson/cJSON.h>
+#endif
+
 #include "ngx_condition.h"
 
 
-typedef void (*ngx_condition_init_value_pt)(void *ctx);
-
-
-static ngx_condition_expr_id_t  ngx_condition_current_expr_id =
-    NGX_CONDITION_NO_EXPR_ID;
-
-
-static ngx_int_t ngx_condition_copy_str(ngx_pool_t *pool, ngx_str_t *dst,
-    ngx_str_t *src);
-static void *ngx_condition_prepare_slot(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf, size_t element_size, size_t expr_id_offset,
-    ngx_condition_init_value_pt init, ngx_uint_t *created);
-static char *ngx_condition_call_slot(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf, size_t element_size, size_t value_offset,
-    size_t expr_id_offset, ngx_condition_init_value_pt init,
-    char *(*setter)(ngx_conf_t *, ngx_command_t *, void *));
+typedef void (*ngx_condition_init_value_pt)(void *ctx, size_t value_offset);
 
 
 typedef struct {
@@ -31,10 +20,113 @@ typedef struct {
 } ngx_condition_number_t;
 
 
+static ngx_condition_expr_id_t  ngx_condition_current_expr_id =
+    NGX_CONDITION_NO_EXPR_ID;
+
+
+const ngx_condition_operator_t  ngx_condition_operators[] = {
+    /* Canonical entries must follow ngx_condition_op_e order. */
+    { ngx_string("not"), NGX_CONDITION_OP_NOT, 1, 1, 0 },
+    { ngx_string("and"), NGX_CONDITION_OP_AND, 2, (ngx_uint_t) -1, 0 },
+    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, (ngx_uint_t) -1, 0 },
+    { ngx_string("bool"), NGX_CONDITION_OP_BOOL, 1, 1, 0 },
+    { ngx_string("is_empty"), NGX_CONDITION_OP_IS_EMPTY, 1, 1, 0 },
+    { ngx_string("str_eq"), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
+    { ngx_string("str_starts_with"), NGX_CONDITION_OP_STR_STARTS_WITH,
+      2, 2, 1 },
+    { ngx_string("str_ends_with"), NGX_CONDITION_OP_STR_ENDS_WITH,
+      2, 2, 1 },
+    { ngx_string("str_contains"), NGX_CONDITION_OP_STR_CONTAINS,
+      2, 2, 1 },
+    { ngx_string("str_regex_match"), NGX_CONDITION_OP_STR_REGEX_MATCH,
+      2, 2, 1 },
+    { ngx_string("str_in"), NGX_CONDITION_OP_STR_IN,
+      2, (ngx_uint_t) -1, 1 },
+    { ngx_string("is_num"), NGX_CONDITION_OP_IS_NUM, 1, 1, 0 },
+    { ngx_string("num_eq"), NGX_CONDITION_OP_NUM_EQ, 2, 2, 0 },
+    { ngx_string("num_lt"), NGX_CONDITION_OP_NUM_LT, 2, 2, 0 },
+    { ngx_string("num_le"), NGX_CONDITION_OP_NUM_LE, 2, 2, 0 },
+    { ngx_string("num_gt"), NGX_CONDITION_OP_NUM_GT, 2, 2, 0 },
+    { ngx_string("num_ge"), NGX_CONDITION_OP_NUM_GE, 2, 2, 0 },
+    { ngx_string("num_range"), NGX_CONDITION_OP_NUM_RANGE, 2, 3, 0 },
+    { ngx_string("num_in"), NGX_CONDITION_OP_NUM_IN,
+      2, (ngx_uint_t) -1, 0 },
+    { ngx_string("time_range"), NGX_CONDITION_OP_TIME_RANGE, 0, 9, 0 },
+    { ngx_string("is_ip"), NGX_CONDITION_OP_IS_IP, 1, 1, 0 },
+    { ngx_string("is_cidr"), NGX_CONDITION_OP_IS_CIDR, 1, 1, 0 },
+    { ngx_string("ip_range"), NGX_CONDITION_OP_IP_RANGE,
+      2, (ngx_uint_t) -1, 0 },
+#if (NGX_CJSON)
+    { ngx_string("is_json"), NGX_CONDITION_OP_IS_JSON, 1, 1, 0 },
+#endif
+    /* Symbol aliases follow the canonical, enum-indexed entries. */
+    { ngx_string("="), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
+    { ngx_string("^~"), NGX_CONDITION_OP_STR_STARTS_WITH, 2, 2, 1 },
+    { ngx_string("~$"), NGX_CONDITION_OP_STR_ENDS_WITH, 2, 2, 1 },
+    { ngx_string("~"), NGX_CONDITION_OP_STR_REGEX_MATCH, 2, 2, 1 },
+    { ngx_string("~*"), NGX_CONDITION_OP_STR_REGEX_MATCH, 2, 2, 1 },
+    { ngx_string("=="), NGX_CONDITION_OP_NUM_EQ, 2, 2, 0 },
+    { ngx_string("<"), NGX_CONDITION_OP_NUM_LT, 2, 2, 0 },
+    { ngx_string("<="), NGX_CONDITION_OP_NUM_LE, 2, 2, 0 },
+    { ngx_string(">"), NGX_CONDITION_OP_NUM_GT, 2, 2, 0 },
+    { ngx_string(">="), NGX_CONDITION_OP_NUM_GE, 2, 2, 0 },
+    { ngx_null_string, NGX_CONDITION_OP_INVALID, 0, 0, 0 }
+};
+
+
+static ngx_int_t ngx_condition_copy_str(ngx_pool_t *pool, ngx_str_t *dst,
+    ngx_str_t *src);
+static void *ngx_condition_prepare_slot(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf, size_t element_size, size_t value_offset,
+    size_t expr_id_offset, ngx_condition_init_value_pt init,
+    ngx_uint_t *created);
+static char *ngx_condition_call_slot(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf, size_t element_size, size_t value_offset,
+    size_t expr_id_offset, ngx_condition_init_value_pt init,
+    char *(*setter)(ngx_conf_t *, ngx_command_t *, void *));
 static ngx_int_t ngx_condition_parse_number(ngx_str_t *value,
     ngx_condition_number_t *number);
 static ngx_int_t ngx_condition_parse_ipv4(ngx_str_t *value,
     in_addr_t *addr);
+
+
+const ngx_condition_operator_t *
+ngx_condition_find_operator(ngx_str_t *name, ngx_uint_t *negative)
+{
+    ngx_str_t   base;
+    ngx_uint_t  i;
+
+    base = *name;
+    *negative = 0;
+
+    if (name->len > 1 && name->data[0] == '!') {
+        if (name->data[1] == '!') {
+            return NULL;
+        }
+
+        base.len--;
+        base.data++;
+        *negative = 1;
+    }
+
+    for (i = 0; ngx_condition_operators[i].name.len; i++) {
+        if (ngx_condition_operators[i].name.len == base.len
+            && ngx_strncmp(ngx_condition_operators[i].name.data,
+                           base.data, base.len) == 0)
+        {
+            if (*negative
+                && ngx_condition_operators[i].op
+                   <= NGX_CONDITION_OP_LOGIC_LAST)
+            {
+                return NULL;
+            }
+
+            return &ngx_condition_operators[i];
+        }
+    }
+
+    return NULL;
+}
 
 
 ngx_int_t
@@ -120,9 +212,47 @@ ngx_condition_get_or_create_name(ngx_conf_t *cf,
 }
 
 
+ngx_int_t
+ngx_condition_parse_terms(ngx_conf_t *cf,
+    ngx_condition_registry_t *registry, ngx_uint_t first,
+    ngx_array_t *terms)
+{
+    ngx_str_t              name, *value;
+    ngx_uint_t             i, negative;
+    ngx_condition_term_t  *term;
+    ngx_condition_name_t  *entry;
+
+    value = cf->args->elts;
+
+    for (i = first; i < cf->args->nelts; i++) {
+        name = value[i];
+        negative = (name.len != 0 && name.data[0] == '!');
+        if (negative) {
+            name.data++;
+            name.len--;
+        }
+
+        entry = ngx_condition_get_or_create_name(cf, registry, &name);
+        if (entry == NULL) {
+            return NGX_ERROR;
+        }
+
+        term = ngx_array_push(terms);
+        if (term == NULL) {
+            return NGX_ERROR;
+        }
+
+        term->condition_id = entry->id;
+        term->negative = negative;
+    }
+
+    return NGX_OK;
+}
+
+
 ngx_condition_expr_id_t
-ngx_condition_get_or_create_when_expr(ngx_conf_t *cf,
-    ngx_condition_registry_t *registry, ngx_array_t *terms)
+ngx_condition_get_when_expr(ngx_conf_t *cf, ngx_condition_registry_t *registry,
+    ngx_array_t *terms)
 {
     ngx_uint_t                 i;
     ngx_condition_term_t      *a, *b;
@@ -453,6 +583,71 @@ ngx_condition_parse_uint_range(ngx_str_t *value, ngx_int_t *start,
 
 
 ngx_int_t
+ngx_condition_set_time_range(ngx_conf_t *cf, ngx_condition_range_t *range,
+    ngx_str_t *value, ngx_int_t minimum, ngx_int_t maximum,
+    const char *field)
+{
+    if (range->set
+        || ngx_condition_parse_uint_range(value, &range->start,
+                                          &range->end) != NGX_OK
+        || range->start < minimum || range->end > maximum)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid or duplicate %s range \"%V\"",
+                           field, value);
+        return NGX_ERROR;
+    }
+
+    range->set = 1;
+    return NGX_OK;
+}
+
+
+ngx_int_t
+ngx_condition_parse_timezone(ngx_conf_t *cf, ngx_str_t *value,
+    ngx_int_t *gmt_offset)
+{
+    ngx_int_t  hours, minutes, sign;
+
+    if (value->len == 3
+        && ngx_strncmp(value->data, "gmt", 3) == 0)
+    {
+        *gmt_offset = 0;
+        return NGX_OK;
+    }
+
+    if (value->len != 8
+        || ngx_strncmp(value->data, "gmt", 3) != 0
+        || (value->data[3] != '+' && value->data[3] != '-'))
+    {
+        return NGX_DECLINED;
+    }
+
+    hours = ngx_atoi(value->data + 4, 2);
+    minutes = ngx_atoi(value->data + 6, 2);
+    if (hours == NGX_ERROR || minutes == NGX_ERROR
+        || hours > 23 || minutes > 59)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid time zone \"%V\"", value);
+        return NGX_ERROR;
+    }
+
+    sign = (value->data[3] == '-') ? -1 : 1;
+    *gmt_offset = sign * (hours * 3600 + minutes * 60);
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+ngx_condition_range_matches(ngx_condition_range_t *range, ngx_int_t value)
+{
+    return !range->set || (value >= range->start && value <= range->end);
+}
+
+
+ngx_int_t
 ngx_condition_parse_ip(ngx_str_t *value, ngx_condition_ip_t *ip)
 {
     ngx_memzero(ip, sizeof(ngx_condition_ip_t));
@@ -579,6 +774,38 @@ ngx_condition_parse_ip_item(ngx_str_t *value,
 
 
 ngx_int_t
+ngx_condition_parse_ip_items(ngx_conf_t *cf, ngx_uint_t first,
+    ngx_array_t **items)
+{
+    ngx_str_t                *value;
+    ngx_uint_t                i, n;
+    ngx_condition_ip_item_t  *item;
+
+    value = cf->args->elts;
+    n = cf->args->nelts - first;
+    *items = ngx_array_create(cf->pool, n, sizeof(ngx_condition_ip_item_t));
+    if (*items == NULL) {
+        return NGX_ERROR;
+    }
+
+    for (i = first; i < cf->args->nelts; i++) {
+        item = ngx_array_push(*items);
+        if (item == NULL) {
+            return NGX_ERROR;
+        }
+
+        if (ngx_condition_parse_ip_item(&value[i], item) != NGX_OK) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "invalid IP item \"%V\"", &value[i]);
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
 ngx_condition_ip_item_matches(ngx_condition_ip_t *ip,
     ngx_condition_ip_item_t *item)
 {
@@ -610,6 +837,39 @@ ngx_condition_ip_item_matches(ngx_condition_ip_t *ip,
 
     return 0;
 }
+
+
+#if (NGX_CJSON)
+ngx_int_t
+ngx_condition_is_json(ngx_str_t *value)
+{
+    const char *end;
+    cJSON      *json;
+
+    if (value->len == 0) {
+        return 0;
+    }
+
+    end = NULL;
+    json = cJSON_ParseWithLengthOpts((const char *) value->data, value->len,
+                                     &end, 0);
+    if (json == NULL || end == NULL) {
+        if (json != NULL) {
+            cJSON_Delete(json);
+        }
+        return 0;
+    }
+
+    while (end < (const char *) value->data + value->len
+           && (*end == ' ' || *end == '\t' || *end == CR || *end == LF))
+    {
+        end++;
+    }
+
+    cJSON_Delete(json);
+    return end == (const char *) value->data + value->len;
+}
+#endif
 
 
 ngx_condition_expr_id_t
@@ -992,7 +1252,7 @@ ngx_conf_merge_conditional_bufs_value(ngx_conf_t *cf, ngx_array_t **values,
 
 static void *
 ngx_condition_prepare_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
-    size_t element_size, size_t expr_id_offset,
+    size_t element_size, size_t value_offset, size_t expr_id_offset,
     ngx_condition_init_value_pt init, ngx_uint_t *created)
 {
     void                     *ctx;
@@ -1021,7 +1281,7 @@ ngx_condition_prepare_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
     }
 
     ngx_memzero(ctx, element_size);
-    init(ctx);
+    init(ctx, value_offset);
 
     expr_id = (ngx_condition_expr_id_t *)
                   ((u_char *) ctx + expr_id_offset);
@@ -1046,7 +1306,8 @@ ngx_condition_call_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
 
     created = 0;
     ctx = ngx_condition_prepare_slot(cf, cmd, conf, element_size,
-                                     expr_id_offset, init, &created);
+                                     value_offset, expr_id_offset, init,
+                                     &created);
     if (ctx == NULL) {
         return NGX_CONF_ERROR;
     }
@@ -1066,60 +1327,70 @@ ngx_condition_call_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
 
 #define ngx_condition_init_scalar(name, type, initial)                       \
     static void                                                              \
-    name(void *data)                                                         \
+    name(void *data, size_t value_offset)                                    \
     {                                                                        \
-        type *ctx = data;                                                    \
-        ctx->value = initial;                                                \
+        type *value = (type *) ((u_char *) data + value_offset);             \
+        *value = initial;                                                    \
     }
 
 ngx_condition_init_scalar(ngx_condition_init_flag,
-    ngx_conf_condition_flag_ctx_t, NGX_CONF_UNSET)
+    ngx_flag_t, NGX_CONF_UNSET)
 ngx_condition_init_scalar(ngx_condition_init_num,
-    ngx_conf_condition_num_ctx_t, NGX_CONF_UNSET)
+    ngx_int_t, NGX_CONF_UNSET)
 ngx_condition_init_scalar(ngx_condition_init_size,
-    ngx_conf_condition_size_ctx_t, NGX_CONF_UNSET_SIZE)
+    size_t, NGX_CONF_UNSET_SIZE)
 ngx_condition_init_scalar(ngx_condition_init_off,
-    ngx_conf_condition_off_ctx_t, NGX_CONF_UNSET)
+    off_t, NGX_CONF_UNSET)
 ngx_condition_init_scalar(ngx_condition_init_msec,
-    ngx_conf_condition_msec_ctx_t, NGX_CONF_UNSET_MSEC)
+    ngx_msec_t, NGX_CONF_UNSET_MSEC)
 ngx_condition_init_scalar(ngx_condition_init_sec,
-    ngx_conf_condition_sec_ctx_t, NGX_CONF_UNSET)
+    time_t, NGX_CONF_UNSET)
 ngx_condition_init_scalar(ngx_condition_init_enum,
-    ngx_conf_condition_enum_ctx_t, NGX_CONF_UNSET_UINT)
+    ngx_uint_t, NGX_CONF_UNSET_UINT)
 ngx_condition_init_scalar(ngx_condition_init_bitmask,
-    ngx_conf_condition_bitmask_ctx_t, 0)
+    ngx_uint_t, 0)
 
 
 static void
-ngx_condition_init_str(void *data)
+ngx_condition_init_str(void *data, size_t value_offset)
 {
-    ngx_conf_condition_str_ctx_t *ctx = data;
-    ctx->value.len = 0;
-    ctx->value.data = NULL;
+    ngx_str_t  *value;
+
+    value = (ngx_str_t *) ((u_char *) data + value_offset);
+    value->len = 0;
+    value->data = NULL;
 }
 
 
 static void
-ngx_condition_init_str_array(void *data)
+ngx_condition_init_ptr(void *data, size_t value_offset)
 {
-    ngx_conf_condition_str_array_ctx_t *ctx = data;
-    ctx->value = NGX_CONF_UNSET_PTR;
+    void  **value;
+
+    value = (void **) ((u_char *) data + value_offset);
+    *value = NGX_CONF_UNSET_PTR;
 }
 
 
 static void
-ngx_condition_init_keyval(void *data)
+ngx_condition_init_bufs(void *data, size_t value_offset)
 {
-    ngx_conf_condition_keyval_ctx_t *ctx = data;
-    ctx->value = NGX_CONF_UNSET_PTR;
+    ngx_bufs_t  *value;
+
+    value = (ngx_bufs_t *) ((u_char *) data + value_offset);
+    ngx_memzero(value, sizeof(ngx_bufs_t));
 }
 
 
-static void
-ngx_condition_init_bufs(void *data)
+char *
+ngx_condition_call_ptr_slot(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf, size_t element_size, size_t value_offset,
+    size_t expr_id_offset,
+    char *(*setter)(ngx_conf_t *, ngx_command_t *, void *))
 {
-    ngx_conf_condition_bufs_ctx_t *ctx = data;
-    ngx_memzero(&ctx->value, sizeof(ngx_bufs_t));
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_ptr,
+                                   setter);
 }
 
 
@@ -1163,7 +1434,7 @@ ngx_conf_set_conditional_str_array_slot(ngx_conf_t *cf, ngx_command_t *cmd,
                                             value),
                                    offsetof(ngx_conf_condition_str_array_ctx_t,
                                             expr_id),
-                                   ngx_condition_init_str_array,
+                                   ngx_condition_init_ptr,
                                    ngx_conf_set_str_array_slot);
 }
 
@@ -1178,7 +1449,7 @@ ngx_conf_set_conditional_keyval_slot(ngx_conf_t *cf, ngx_command_t *cmd,
                                             value),
                                    offsetof(ngx_conf_condition_keyval_ctx_t,
                                             expr_id),
-                                   ngx_condition_init_keyval,
+                                   ngx_condition_init_ptr,
                                    ngx_conf_set_keyval_slot);
 }
 

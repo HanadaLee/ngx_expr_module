@@ -29,21 +29,20 @@ typedef enum {
     NGX_CONDITION_OP_OR,
     NGX_CONDITION_OP_BOOL,
     NGX_CONDITION_OP_IS_EMPTY,
-    NGX_CONDITION_OP_IS_NOT_EMPTY,
     NGX_CONDITION_OP_STR_EQ,
-    NGX_CONDITION_OP_STR_NE,
     NGX_CONDITION_OP_STR_STARTS_WITH,
     NGX_CONDITION_OP_STR_ENDS_WITH,
     NGX_CONDITION_OP_STR_CONTAINS,
     NGX_CONDITION_OP_STR_REGEX_MATCH,
+    NGX_CONDITION_OP_STR_IN,
     NGX_CONDITION_OP_IS_NUM,
     NGX_CONDITION_OP_NUM_EQ,
-    NGX_CONDITION_OP_NUM_NE,
     NGX_CONDITION_OP_NUM_LT,
     NGX_CONDITION_OP_NUM_LE,
     NGX_CONDITION_OP_NUM_GT,
     NGX_CONDITION_OP_NUM_GE,
     NGX_CONDITION_OP_NUM_RANGE,
+    NGX_CONDITION_OP_NUM_IN,
     NGX_CONDITION_OP_TIME_RANGE,
     NGX_CONDITION_OP_IS_IP,
     NGX_CONDITION_OP_IS_CIDR,
@@ -56,49 +55,65 @@ typedef enum {
 
 
 typedef struct {
-    ngx_str_t           name;
-    ngx_condition_id_t  id;
-    unsigned            defined:1;
+    ngx_str_t                name;
+    ngx_condition_op_e       op;
+    ngx_uint_t               min_args;
+    ngx_uint_t               max_args;
+    unsigned                 allow_ignore_case:1;
+} ngx_condition_operator_t;
+
+
+typedef struct {
+    ngx_str_t                name;
+    ngx_condition_id_t       id;
+    unsigned                 defined:1;
 } ngx_condition_name_t;
 
 
 typedef struct {
-    ngx_condition_id_t  condition_id;
-    unsigned            negative:1;
+    ngx_condition_id_t       condition_id;
+    unsigned                 negative:1;
 } ngx_condition_term_t;
 
 
 typedef struct {
+    unsigned                 set:1;
+    ngx_int_t                start;
+    ngx_int_t                end;
+} ngx_condition_range_t;
+
+
+typedef struct {
     ngx_condition_expr_id_t  expr_id;
-    ngx_array_t              terms; /* ngx_condition_term_t */
+    ngx_array_t              terms;       /* ngx_condition_term_t */
 } ngx_condition_when_expr_t;
 
 
 typedef struct {
-    ngx_array_t  names;       /* ngx_condition_name_t */
-    ngx_array_t  expressions; /* ngx_condition_when_expr_t */
+    ngx_array_t              names;       /* ngx_condition_name_t */
+    ngx_array_t              expressions; /* ngx_condition_when_expr_t */
 } ngx_condition_registry_t;
 
 
 typedef struct {
-    sa_family_t  family;
-    in_addr_t    in;
+    sa_family_t              family;
+    in_addr_t                in;
 #if (NGX_HAVE_INET6)
-    u_char       in6[16];
+    u_char                   in6[16];
 #endif
 } ngx_condition_ip_t;
 
 
 typedef struct {
-    sa_family_t  family;
-    unsigned     range:1;
-    in_addr_t    addr;
-    in_addr_t    mask;
-    in_addr_t    start;
-    in_addr_t    end;
+    sa_family_t              family;
+    unsigned                 range:1;
+    in_addr_t                addr;
+    in_addr_t                mask;
+    in_addr_t                start;
+    in_addr_t                end;
 #if (NGX_HAVE_INET6)
-    u_char       addr6[16];
-    u_char       mask6[16];
+    u_char                   addr6[16];
+    u_char                   mask6[16];
 #endif
 } ngx_condition_ip_item_t;
 
@@ -185,11 +200,19 @@ typedef ngx_int_t (*ngx_condition_eval_pt)(void *data,
     ngx_condition_expr_id_t expr_id);
 
 
+extern const ngx_condition_operator_t  ngx_condition_operators[];
+
+
+const ngx_condition_operator_t *ngx_condition_find_operator(ngx_str_t *name,
+    ngx_uint_t *negative);
 ngx_int_t ngx_condition_registry_init(ngx_pool_t *pool,
     ngx_condition_registry_t *registry);
 ngx_condition_name_t *ngx_condition_get_or_create_name(ngx_conf_t *cf,
     ngx_condition_registry_t *registry, ngx_str_t *name);
-ngx_condition_expr_id_t ngx_condition_get_or_create_when_expr(ngx_conf_t *cf,
+ngx_int_t ngx_condition_parse_terms(ngx_conf_t *cf,
+    ngx_condition_registry_t *registry, ngx_uint_t first,
+    ngx_array_t *terms);
+ngx_condition_expr_id_t ngx_condition_get_when_expr(ngx_conf_t *cf,
     ngx_condition_registry_t *registry, ngx_array_t *terms);
 ngx_int_t ngx_condition_validate_names(ngx_conf_t *cf,
     ngx_condition_registry_t *registry);
@@ -207,13 +230,25 @@ ngx_int_t ngx_condition_compare_numbers(ngx_str_t *a, ngx_str_t *b,
     ngx_int_t *result);
 ngx_int_t ngx_condition_parse_uint_range(ngx_str_t *value,
     ngx_int_t *start, ngx_int_t *end);
+ngx_int_t ngx_condition_set_time_range(ngx_conf_t *cf,
+    ngx_condition_range_t *range, ngx_str_t *value,
+    ngx_int_t minimum, ngx_int_t maximum, const char *field);
+ngx_int_t ngx_condition_parse_timezone(ngx_conf_t *cf, ngx_str_t *value,
+    ngx_int_t *gmt_offset);
+ngx_int_t ngx_condition_range_matches(ngx_condition_range_t *range,
+    ngx_int_t value);
 ngx_int_t ngx_condition_parse_ip(ngx_str_t *value,
     ngx_condition_ip_t *ip);
 ngx_int_t ngx_condition_is_cidr(ngx_str_t *value);
 ngx_int_t ngx_condition_parse_ip_item(ngx_str_t *value,
     ngx_condition_ip_item_t *item);
+ngx_int_t ngx_condition_parse_ip_items(ngx_conf_t *cf, ngx_uint_t first,
+    ngx_array_t **items);
 ngx_int_t ngx_condition_ip_item_matches(ngx_condition_ip_t *ip,
     ngx_condition_ip_item_t *item);
+#if (NGX_CJSON)
+ngx_int_t ngx_condition_is_json(ngx_str_t *value);
+#endif
 
 ngx_condition_expr_id_t ngx_condition_get_current_expr_id(void);
 void ngx_condition_set_current_expr_id(ngx_condition_expr_id_t expr_id);
@@ -272,6 +307,10 @@ ngx_int_t ngx_conf_init_conditional_bitmask_value(ngx_conf_t *cf,
 ngx_int_t ngx_conf_merge_conditional_bitmask_value(ngx_conf_t *cf,
     ngx_array_t **values, ngx_array_t *prev, ngx_uint_t default_value);
 
+char *ngx_condition_call_ptr_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf, size_t element_size,
+    size_t value_offset, size_t expr_id_offset,
+    char *(*setter)(ngx_conf_t *, ngx_command_t *, void *));
 char *ngx_conf_set_conditional_flag_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 char *ngx_conf_set_conditional_str_slot(ngx_conf_t *cf,

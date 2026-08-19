@@ -219,6 +219,52 @@ are rejected by the normal NGINX configuration-context check.
 
 ### Condition operators
 
+Every non-logical English operator can be negated by prefixing the operator
+with one `!`, or by placing `not` before it:
+
+```nginx
+condition has_value !is_empty $arg_value;
+condition is_external !str_starts_with $uri /internal/;
+condition is_other_port not num_in $server_port 80 443;
+```
+
+The logical form `condition name not condition_ref;` is also preserved. When
+the token after `not` is a non-logical operator name, `not` modifies that
+operator; otherwise, it remains the logical operator over a named condition.
+
+The following base symbolic aliases are registered:
+
+| English operator | Symbol | Notes |
+| --- | --- | --- |
+| `str_eq` | `=` | String equality |
+| `str_starts_with` | `^~` | String prefix |
+| `str_ends_with` | `~$` | String suffix |
+| `str_regex_match` | `~` | Regular expression |
+| `str_regex_match -i` | `~*` | Case-insensitive regular expression |
+| `num_eq` | `==` | Numeric equality |
+| `num_lt` | `<` | Numeric less than |
+| `num_le` | `<=` | Numeric less than or equal |
+| `num_gt` | `>` | Numeric greater than |
+| `num_ge` | `>=` | Numeric greater than or equal |
+
+The same single `!` prefix applies to English and symbolic operators. Thus
+`!=` and `!==` work naturally as `!` plus the registered `=` and `==` aliases;
+they are not separate operator entries. Repeated prefixes such as `!!str_eq`,
+`!!=`, and `!!==` are invalid. For example:
+
+```nginx
+condition not_internal !^~ $uri /internal/;
+condition not_php !~$ $uri .php;
+condition not_api !~* $uri ^/api/;
+condition outside_range !>= $arg_score 60;
+```
+
+Negation is applied only after the underlying predicate has been evaluated
+successfully. A failed complex-value evaluation, or a conversion failure in a
+numeric, time, or IP comparison, remains a non-match. Validation predicates
+behave normally under negation; for example, `!is_num` matches a value that
+is not numeric.
+
 #### Logic
 
 ```nginx
@@ -257,42 +303,66 @@ and must be exactly `true` or `false`.
 
 ```nginx
 condition name is_empty complex_value;
-condition name is_not_empty complex_value;
+condition not_empty !is_empty complex_value;
 ```
 
 #### Strings
 
 ```nginx
 condition name str_eq [-i] complex_value1 complex_value2;
-condition name str_ne [-i] complex_value1 complex_value2;
 condition name str_starts_with [-i] complex_value complex_value_prefix;
 condition name str_ends_with [-i] complex_value complex_value_suffix;
 condition name str_contains [-i] complex_value complex_value_substring;
 condition name str_regex_match [-i] complex_value regex;
+condition name str_in [-i] complex_value candidate1 [candidate2 ...];
 ```
 
 `-i` enables case-insensitive comparison for the operator that follows it. The
 regular expression is compiled while loading the configuration and
 requires NGINX PCRE support; it is not a complex value.
 
+`str_in` compares the first value with each candidate in configuration order
+and matches on the first equality. All candidates are complex values. It has
+no symbolic alias. Use `!str_eq` or `!=` for string inequality.
+
+The string symbols can be used directly in the same position:
+
+```nginx
+condition is_get = $request_method GET;
+condition is_asset ^~ $uri /assets/;
+condition is_javascript ~$ $uri .js;
+condition is_api ~* $uri ^/API/;
+```
+
 #### Numbers
 
 ```nginx
 condition name is_num complex_value;
 condition name num_eq complex_value1 complex_value2;
-condition name num_ne complex_value1 complex_value2;
 condition name num_lt complex_value1 complex_value2;
 condition name num_le complex_value1 complex_value2;
 condition name num_gt complex_value1 complex_value2;
 condition name num_ge complex_value1 complex_value2;
 condition name num_range complex_value complex_value_end;
 condition name num_range complex_value complex_value_start complex_value_end;
+condition name num_in complex_value candidate1 [candidate2 ...];
 ```
 
 `num_range value end` tests the closed interval `[0, end]`.
 `num_range value start end` tests `[start, end]`. Decimal comparison is exact
 and does not convert values to floating point, avoiding overflow and rounding
 errors.
+
+`num_in` performs exact numeric equality against each candidate in
+configuration order and matches the first equal value. It has no symbolic
+alias. Use `!num_eq` or `!==` for numeric inequality. Numeric symbols can be
+used directly:
+
+```nginx
+condition is_success >= $status 200;
+condition is_client_error < $status 500;
+condition is_default_port num_in $server_port 80 443;
+```
 
 #### Time
 
