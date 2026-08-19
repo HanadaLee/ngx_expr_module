@@ -46,6 +46,7 @@ changed between processing phases.
     - [Expression result API](#expression-result-api)
   - [Diagnostics and performance](#diagnostics-and-performance)
   - [Limitations](#limitations)
+  - [Testing](#testing)
   - [Author](#author)
   - [License](#license)
 
@@ -812,6 +813,34 @@ details at normal log levels.
 - Expression and condition IDs are valid only for one configuration cycle and
   can change after a reload.
 - Expression results are intentionally not cached.
+
+## Testing
+
+The test suite uses the official
+[nginx-tests](https://github.com/nginx/nginx-tests) `Test::Nginx` framework.
+First build NGINX with this module and the modules exercised by the tests:
+
+```sh
+cd /path/to/nginx-1.31.3
+./configure \
+    --with-stream \
+    --with-debug \
+    --with-http_sub_module \
+    --add-module=/path/to/ngx_condition_module
+make -j2
+```
+
+Then run the Perl tests from the module directory:
+
+```sh
+TEST_NGINX_BINARY=/path/to/nginx-1.31.3/objs/nginx \
+    prove -I /path/to/nginx-tests/lib t
+```
+
+The suite covers HTTP and Stream operators, invalid configurations, scope
+inheritance, and condition-aware built-in directives. The cJSON test is skipped
+when the build does not provide cJSON. Set `TEST_NGINX_VERBOSE=1` for verbose
+protocol logging or `TEST_NGINX_LEAVE=1` to retain temporary test directories.
 
 ## Author
 
