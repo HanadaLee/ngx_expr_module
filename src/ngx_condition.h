@@ -18,6 +18,11 @@ typedef ngx_uint_t  ngx_condition_expr_id_t;
 #define NGX_CONDITION_EXPR_MISS  0
 #define NGX_CONDITION_EXPR_HIT   1
 
+#define NGX_CONDITION_NO_ARGS            0
+#define NGX_CONDITION_MAX_ARGS           (ngx_uint_t) -1
+#define NGX_CONDITION_NO_IGNORE_CASE     0
+#define NGX_CONDITION_ALLOW_IGNORE_CASE  1
+
 
 #define NGX_CONDITION_FUNC_LOGIC_FIRST  NGX_CONDITION_FUNC_NOT
 #define NGX_CONDITION_FUNC_LOGIC_LAST   NGX_CONDITION_FUNC_OR
@@ -52,15 +57,6 @@ typedef enum {
 #endif
     NGX_CONDITION_FUNC_INVALID
 } ngx_condition_func_e;
-
-
-typedef struct {
-    ngx_str_t                name;
-    ngx_condition_func_e     type;
-    ngx_uint_t               min_args;
-    ngx_uint_t               max_args;
-    unsigned                 allow_ignore_case:1;
-} ngx_condition_func_t;
 
 
 typedef struct {
@@ -200,11 +196,6 @@ typedef ngx_int_t (*ngx_condition_eval_pt)(void *data,
     ngx_condition_expr_id_t expr_id);
 
 
-extern const ngx_condition_func_t  ngx_condition_funcs[];
-
-
-const ngx_condition_func_t *ngx_condition_find_func(ngx_str_t *name,
-    ngx_uint_t *negative);
 ngx_int_t ngx_condition_registry_init(ngx_pool_t *pool,
     ngx_condition_registry_t *registry);
 ngx_condition_name_t *ngx_condition_get_or_create_name(ngx_conf_t *cf,

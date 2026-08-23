@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Tests for ngx_condition_module operators in HTTP and Stream.
+# Tests for ngx_condition_module funcs in HTTP and Stream.
 
 ###############################################################################
 
@@ -252,10 +252,10 @@ $t->run();
 
 ###############################################################################
 
-like(http_get('/matrix'), qr/^HTTP\/1\.1 204/, 'HTTP operator matrix');
+like(http_get('/matrix'), qr/^HTTP\/1\.1 204/, 'HTTP func matrix');
 like(http_get('/scope'), qr/^HTTP\/1\.1 204/, 'HTTP condition scope');
 is(stream('127.0.0.1:' . port(8081))->read(), 'ok',
-    'Stream operator matrix');
+    'Stream func matrix');
 
 $t->stop();
 

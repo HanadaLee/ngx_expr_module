@@ -21,19 +21,19 @@ my $t = Test::Nginx->new()
     ->has(qw/http stream ngx_condition_module/)
     ->plan(14);
 
-check_invalid('double operator negation', 'http',
+check_invalid('double func negation', 'http',
     'condition broken !!= a b;',
     qr/unsupported condition type "!!="/);
 
-check_invalid('removed is_not_empty operator', 'http',
+check_invalid('removed is_not_empty func', 'http',
     'condition broken is_not_empty value;',
     qr/unsupported condition type "is_not_empty"/);
 
-check_invalid('removed str_ne operator', 'http',
+check_invalid('removed str_ne func', 'http',
     'condition broken str_ne a b;',
     qr/unsupported condition type "str_ne"/);
 
-check_invalid('removed num_ne operator', 'stream',
+check_invalid('removed num_ne func', 'stream',
     'condition broken num_ne 1 2;',
     qr/unsupported condition type "num_ne"/);
 

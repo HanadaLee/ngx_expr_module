@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Tests for the optional ngx_condition_module cJSON operator.
+# Tests for the optional ngx_condition_module cJSON func.
 
 ###############################################################################
 
