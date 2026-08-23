@@ -24,7 +24,7 @@ typedef struct {
 
 
 struct ngx_stream_condition_def_s {
-    ngx_condition_op_e                   op;
+    ngx_condition_func_e                 func;
     unsigned                             ignore_case:1;
     unsigned                             bool_value:1;
     unsigned                             negative:1;
@@ -41,7 +41,7 @@ struct ngx_stream_condition_def_s {
 
 typedef struct {
     ngx_condition_id_t                   id;
-    ngx_condition_op_e                   type;
+    ngx_condition_func_e                 type;
     ngx_array_t                          definitions; /* definition pointers */
 } ngx_stream_condition_scope_entry_t;
 
@@ -76,7 +76,7 @@ static ngx_int_t ngx_stream_condition_compile_value(ngx_conf_t *cf,
     ngx_str_t *value, ngx_stream_complex_value_t *complex_value);
 static ngx_int_t ngx_stream_condition_parse_definition(ngx_conf_t *cf,
     ngx_stream_condition_main_conf_t *cmcf,
-    const ngx_condition_operator_t *operator,
+    const ngx_condition_func_t *func,
     ngx_stream_condition_def_t *definition, ngx_uint_t first);
 static ngx_int_t ngx_stream_condition_parse_logic(ngx_conf_t *cf,
     ngx_stream_condition_main_conf_t *cmcf,
@@ -386,7 +386,7 @@ ngx_stream_condition_parse_ip_range(ngx_conf_t *cf,
 static ngx_int_t
 ngx_stream_condition_parse_definition(ngx_conf_t *cf,
     ngx_stream_condition_main_conf_t *cmcf,
-    const ngx_condition_operator_t *operator,
+    const ngx_condition_func_t *func,
     ngx_stream_condition_def_t *definition, ngx_uint_t first)
 {
     ngx_str_t                  *value;
@@ -398,15 +398,15 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
 #endif
 
     value = cf->args->elts;
-    definition->op = operator->op;
+    definition->func = func->type;
 
-    if (operator->name.len == 2
-        && ngx_strncmp(operator->name.data, "~*", 2) == 0)
+    if (func->name.len == 2
+        && ngx_strncmp(func->name.data, "~*", 2) == 0)
     {
         definition->ignore_case = 1;
     }
 
-    if (operator->allow_ignore_case && first < cf->args->nelts
+    if (func->allow_ignore_case && first < cf->args->nelts
         && value[first].len == 2
         && ngx_strncmp(value[first].data, "-i", 2) == 0)
     {
@@ -415,21 +415,21 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
     }
 
     argc = cf->args->nelts - first;
-    if (argc < operator->min_args || argc > operator->max_args) {
+    if (argc < func->min_args || argc > func->max_args) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "invalid number of arguments for condition "
                            "type \"%V\"",
-                           &operator->name);
+                           &func->name);
         return NGX_ERROR;
     }
 
-    if (operator->op >= NGX_CONDITION_OP_LOGIC_FIRST
-        && operator->op <= NGX_CONDITION_OP_LOGIC_LAST)
+    if (func->type >= NGX_CONDITION_FUNC_LOGIC_FIRST
+        && func->type <= NGX_CONDITION_FUNC_LOGIC_LAST)
     {
         return ngx_stream_condition_parse_logic(cf, cmcf, definition, first);
     }
 
-    if (operator->op == NGX_CONDITION_OP_BOOL) {
+    if (func->type == NGX_CONDITION_FUNC_BOOL) {
         if (value[first].len == 4
             && ngx_strncmp(value[first].data, "true", 4) == 0)
         {
@@ -451,16 +451,16 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    if (operator->op == NGX_CONDITION_OP_TIME_RANGE) {
+    if (func->type == NGX_CONDITION_FUNC_TIME_RANGE) {
         return ngx_stream_condition_parse_time(cf, definition, first);
     }
 
-    if (operator->op == NGX_CONDITION_OP_IP_RANGE) {
+    if (func->type == NGX_CONDITION_FUNC_IP_RANGE) {
         return ngx_stream_condition_parse_ip_range(cf, definition, first);
     }
 
-    if (operator->op == NGX_CONDITION_OP_STR_IN
-        || operator->op == NGX_CONDITION_OP_NUM_IN)
+    if (func->type == NGX_CONDITION_FUNC_STR_IN
+        || func->type == NGX_CONDITION_FUNC_NUM_IN)
     {
         if (ngx_stream_condition_compile_value(cf, &value[first],
                                                &definition->values[0])
@@ -491,7 +491,7 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
         return NGX_OK;
     }
 
-    if (operator->op == NGX_CONDITION_OP_STR_REGEX_MATCH) {
+    if (func->type == NGX_CONDITION_FUNC_STR_REGEX_MATCH) {
 #if (NGX_PCRE)
         if (ngx_stream_condition_compile_value(cf, &value[first],
                                              &definition->values[0]) != NGX_OK)
@@ -539,7 +539,7 @@ ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_stream_condition_def_t         *definition, **slot;
     ngx_condition_name_t               *name;
     ngx_stream_condition_main_conf_t   *cmcf;
-    const ngx_condition_operator_t    *modifier, *operator;
+    const ngx_condition_func_t        *func, *modifier;
     ngx_stream_condition_scope_entry_t *entry;
     ngx_uint_t                          first, modifier_negative, negative;
 
@@ -560,33 +560,32 @@ ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     condition_id = name->id;
 
     first = 3;
-    operator = ngx_condition_find_operator(&value[2], &negative);
-    if (operator == NULL) {
+    func = ngx_condition_find_func(&value[2], &negative);
+    if (func == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "unsupported condition type \"%V\"", &value[2]);
         return NGX_CONF_ERROR;
     }
 
-    if (operator->op == NGX_CONDITION_OP_NOT && cf->args->nelts > 3) {
-        modifier = ngx_condition_find_operator(&value[3],
-                                               &modifier_negative);
+    if (func->type == NGX_CONDITION_FUNC_NOT && cf->args->nelts > 3) {
+        modifier = ngx_condition_find_func(&value[3], &modifier_negative);
         if (modifier != NULL
-            && modifier->op > NGX_CONDITION_OP_LOGIC_LAST)
+            && modifier->type > NGX_CONDITION_FUNC_LOGIC_LAST)
         {
-            operator = modifier;
+            func = modifier;
             negative = !modifier_negative;
             first = 4;
         }
     }
 
     entry = ngx_stream_condition_find_entry(cscf, condition_id);
-    if (entry != NULL && entry->type != operator->op) {
+    if (entry != NULL && entry->type != func->type) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "condition \"%V\" has conflicting types \"%V\" "
                            "and \"%V\" in the same scope",
                            &value[1],
-                           &ngx_condition_operators[entry->type].name,
-                           &operator->name);
+                           &ngx_condition_funcs[entry->type].name,
+                           &func->name);
         return NGX_CONF_ERROR;
     }
 
@@ -597,7 +596,7 @@ ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     definition->negative = negative;
 
-    if (ngx_stream_condition_parse_definition(cf, cmcf, operator, definition,
+    if (ngx_stream_condition_parse_definition(cf, cmcf, func, definition,
                                               first)
         != NGX_OK)
     {
@@ -611,7 +610,7 @@ ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
 
         entry->id = condition_id;
-        entry->type = operator->op;
+        entry->type = func->type;
         if (ngx_array_init(&entry->definitions, cf->pool, 1,
                            sizeof(ngx_stream_condition_def_t *)) != NGX_OK)
         {
@@ -722,8 +721,8 @@ ngx_stream_condition_visit(ngx_conf_t *cf,
     definition = entry->definitions.elts;
 
     for (i = 0; i < entry->definitions.nelts; i++) {
-        if (definition[i]->op < NGX_CONDITION_OP_LOGIC_FIRST
-            || definition[i]->op > NGX_CONDITION_OP_LOGIC_LAST)
+        if (definition[i]->func < NGX_CONDITION_FUNC_LOGIC_FIRST
+            || definition[i]->func > NGX_CONDITION_FUNC_LOGIC_LAST)
         {
             continue;
         }
@@ -928,12 +927,12 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
     ngx_condition_ip_item_t     *item;
     ngx_stream_complex_value_t  *list_value;
 
-    if (definition->op >= NGX_CONDITION_OP_LOGIC_FIRST
-        && definition->op <= NGX_CONDITION_OP_LOGIC_LAST)
+    if (definition->func >= NGX_CONDITION_FUNC_LOGIC_FIRST
+        && definition->func <= NGX_CONDITION_FUNC_LOGIC_LAST)
     {
         term = definition->terms->elts;
 
-        if (definition->op == NGX_CONDITION_OP_NOT) {
+        if (definition->func == NGX_CONDITION_FUNC_NOT) {
             cmp = ngx_stream_condition_eval_id(s, cmcf, cscf,
                                                term[0].condition_id, depth);
             if (term[0].negative) {
@@ -942,9 +941,9 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
 
             cmp = !cmp;
             ngx_log_debug5(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
-                           "condition logic, op:%ui ref:%ui negative:%ui "
+                           "condition logic, func:%ui ref:%ui negative:%ui "
                            "result:%i depth:%ui",
-                           definition->op, term[0].condition_id,
+                           definition->func, term[0].condition_id,
                            term[0].negative, cmp, depth);
             return cmp;
         }
@@ -956,36 +955,36 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
                 cmp = !cmp;
             }
 
-            if (definition->op == NGX_CONDITION_OP_AND && !cmp) {
+            if (definition->func == NGX_CONDITION_FUNC_AND && !cmp) {
                 ngx_log_debug6(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
-                               "condition logic short circuit, op:%ui "
+                               "condition logic short circuit, func:%ui "
                                "child:%ui ref:%ui negative:%ui result:%i "
                                "depth:%ui",
-                               definition->op, i, term[i].condition_id,
+                               definition->func, i, term[i].condition_id,
                                term[i].negative, cmp, depth);
                 return 0;
             }
 
-            if (definition->op == NGX_CONDITION_OP_OR && cmp) {
+            if (definition->func == NGX_CONDITION_FUNC_OR && cmp) {
                 ngx_log_debug6(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
-                               "condition logic short circuit, op:%ui "
+                               "condition logic short circuit, func:%ui "
                                "child:%ui ref:%ui negative:%ui result:%i "
                                "depth:%ui",
-                               definition->op, i, term[i].condition_id,
+                               definition->func, i, term[i].condition_id,
                                term[i].negative, cmp, depth);
                 return 1;
             }
         }
 
-        return definition->op == NGX_CONDITION_OP_AND;
+        return definition->func == NGX_CONDITION_FUNC_AND;
     }
 
-    if (definition->op == NGX_CONDITION_OP_BOOL) {
+    if (definition->func == NGX_CONDITION_FUNC_BOOL) {
         return ngx_stream_condition_apply_negation(definition,
                                                    definition->bool_value);
     }
 
-    if (definition->op == NGX_CONDITION_OP_TIME_RANGE) {
+    if (definition->func == NGX_CONDITION_FUNC_TIME_RANGE) {
         return ngx_stream_condition_eval_time(s, definition);
     }
 
@@ -993,24 +992,24 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
         return 0;
     }
 
-    switch (definition->op) {
-    case NGX_CONDITION_OP_IS_EMPTY:
+    switch (definition->func) {
+    case NGX_CONDITION_FUNC_IS_EMPTY:
         return ngx_stream_condition_apply_negation(definition, a.len == 0);
-    case NGX_CONDITION_OP_IS_NUM:
+    case NGX_CONDITION_FUNC_IS_NUM:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_is_number(&a));
-    case NGX_CONDITION_OP_IS_IP:
+    case NGX_CONDITION_FUNC_IS_IP:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_parse_ip(&a, &ip) == NGX_OK);
-    case NGX_CONDITION_OP_IS_CIDR:
+    case NGX_CONDITION_FUNC_IS_CIDR:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_is_cidr(&a));
 #if (NGX_CJSON)
-    case NGX_CONDITION_OP_IS_JSON:
+    case NGX_CONDITION_FUNC_IS_JSON:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_is_json(&a));
 #endif
-    case NGX_CONDITION_OP_STR_REGEX_MATCH:
+    case NGX_CONDITION_FUNC_STR_REGEX_MATCH:
 #if (NGX_PCRE)
         cmp = ngx_stream_regex_exec(s, definition->regex, &a);
         if (cmp == NGX_ERROR) {
@@ -1021,7 +1020,7 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
 #else
         return 0;
 #endif
-    case NGX_CONDITION_OP_IP_RANGE:
+    case NGX_CONDITION_FUNC_IP_RANGE:
         if (ngx_condition_parse_ip(&a, &ip) != NGX_OK) {
             return 0;
         }
@@ -1037,8 +1036,8 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
         break;
     }
 
-    if (definition->op == NGX_CONDITION_OP_STR_IN
-        || definition->op == NGX_CONDITION_OP_NUM_IN)
+    if (definition->func == NGX_CONDITION_FUNC_STR_IN
+        || definition->func == NGX_CONDITION_FUNC_NUM_IN)
     {
         list_value = definition->list_values->elts;
 
@@ -1047,7 +1046,7 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
                 return 0;
             }
 
-            if (definition->op == NGX_CONDITION_OP_STR_IN) {
+            if (definition->func == NGX_CONDITION_FUNC_STR_IN) {
                 if (ngx_condition_str_eq(&a, &b, definition->ignore_case)) {
                     return ngx_stream_condition_apply_negation(definition, 1);
                 }
@@ -1071,20 +1070,20 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
         return 0;
     }
 
-    switch (definition->op) {
-    case NGX_CONDITION_OP_STR_EQ:
+    switch (definition->func) {
+    case NGX_CONDITION_FUNC_STR_EQ:
         return ngx_stream_condition_apply_negation(
             definition,
             ngx_condition_str_eq(&a, &b, definition->ignore_case));
-    case NGX_CONDITION_OP_STR_STARTS_WITH:
+    case NGX_CONDITION_FUNC_STR_STARTS_WITH:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_str_starts_with(
                 &a, &b, definition->ignore_case));
-    case NGX_CONDITION_OP_STR_ENDS_WITH:
+    case NGX_CONDITION_FUNC_STR_ENDS_WITH:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_str_ends_with(
                 &a, &b, definition->ignore_case));
-    case NGX_CONDITION_OP_STR_CONTAINS:
+    case NGX_CONDITION_FUNC_STR_CONTAINS:
         return ngx_stream_condition_apply_negation(
             definition, ngx_condition_str_contains(
                 &a, &b, definition->ignore_case));
@@ -1092,7 +1091,7 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
         break;
     }
 
-    if (definition->op == NGX_CONDITION_OP_NUM_RANGE) {
+    if (definition->func == NGX_CONDITION_FUNC_NUM_RANGE) {
         if (definition->values[2].value.data == NULL) {
             zero.len = 1;
             zero.data = (u_char *) "0";
@@ -1122,16 +1121,16 @@ ngx_stream_condition_eval_definition(ngx_stream_session_t *s,
         return 0;
     }
 
-    switch (definition->op) {
-    case NGX_CONDITION_OP_NUM_EQ:
+    switch (definition->func) {
+    case NGX_CONDITION_FUNC_NUM_EQ:
         return ngx_stream_condition_apply_negation(definition, cmp == 0);
-    case NGX_CONDITION_OP_NUM_LT:
+    case NGX_CONDITION_FUNC_NUM_LT:
         return ngx_stream_condition_apply_negation(definition, cmp < 0);
-    case NGX_CONDITION_OP_NUM_LE:
+    case NGX_CONDITION_FUNC_NUM_LE:
         return ngx_stream_condition_apply_negation(definition, cmp <= 0);
-    case NGX_CONDITION_OP_NUM_GT:
+    case NGX_CONDITION_FUNC_NUM_GT:
         return ngx_stream_condition_apply_negation(definition, cmp > 0);
-    case NGX_CONDITION_OP_NUM_GE:
+    case NGX_CONDITION_FUNC_NUM_GE:
         return ngx_stream_condition_apply_negation(definition, cmp >= 0);
     default:
         return 0;
@@ -1229,7 +1228,7 @@ ngx_stream_condition_get_expr_result(ngx_stream_session_t *s,
         }
 
 #if (NGX_DEBUG)
-        type = NGX_CONDITION_OP_INVALID;
+        type = NGX_CONDITION_FUNC_INVALID;
         if (term[i].condition_id < cscf->effective_nelts
             && cscf->effective[term[i].condition_id] != NULL)
         {

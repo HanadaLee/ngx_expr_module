@@ -12,11 +12,11 @@ typedef void (*ngx_condition_init_value_pt)(void *ctx, size_t value_offset);
 
 
 typedef struct {
-    ngx_uint_t  negative;
-    u_char     *integer;
-    size_t      integer_len;
-    u_char     *fraction;
-    size_t      fraction_len;
+    ngx_uint_t   negative;
+    u_char      *integer;
+    size_t       integer_len;
+    u_char      *fraction;
+    size_t       fraction_len;
 } ngx_condition_number_t;
 
 
@@ -24,53 +24,185 @@ static ngx_condition_expr_id_t  ngx_condition_current_expr_id =
     NGX_CONDITION_NO_EXPR_ID;
 
 
-const ngx_condition_operator_t  ngx_condition_operators[] = {
-    /* Canonical entries must follow ngx_condition_op_e order. */
-    { ngx_string("not"), NGX_CONDITION_OP_NOT, 1, 1, 0 },
-    { ngx_string("and"), NGX_CONDITION_OP_AND, 2, (ngx_uint_t) -1, 0 },
-    { ngx_string("or"), NGX_CONDITION_OP_OR, 2, (ngx_uint_t) -1, 0 },
-    { ngx_string("bool"), NGX_CONDITION_OP_BOOL, 1, 1, 0 },
-    { ngx_string("is_empty"), NGX_CONDITION_OP_IS_EMPTY, 1, 1, 0 },
-    { ngx_string("str_eq"), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
-    { ngx_string("str_starts_with"), NGX_CONDITION_OP_STR_STARTS_WITH,
-      2, 2, 1 },
-    { ngx_string("str_ends_with"), NGX_CONDITION_OP_STR_ENDS_WITH,
-      2, 2, 1 },
-    { ngx_string("str_contains"), NGX_CONDITION_OP_STR_CONTAINS,
-      2, 2, 1 },
-    { ngx_string("str_regex_match"), NGX_CONDITION_OP_STR_REGEX_MATCH,
-      2, 2, 1 },
-    { ngx_string("str_in"), NGX_CONDITION_OP_STR_IN,
-      2, (ngx_uint_t) -1, 1 },
-    { ngx_string("is_num"), NGX_CONDITION_OP_IS_NUM, 1, 1, 0 },
-    { ngx_string("num_eq"), NGX_CONDITION_OP_NUM_EQ, 2, 2, 0 },
-    { ngx_string("num_lt"), NGX_CONDITION_OP_NUM_LT, 2, 2, 0 },
-    { ngx_string("num_le"), NGX_CONDITION_OP_NUM_LE, 2, 2, 0 },
-    { ngx_string("num_gt"), NGX_CONDITION_OP_NUM_GT, 2, 2, 0 },
-    { ngx_string("num_ge"), NGX_CONDITION_OP_NUM_GE, 2, 2, 0 },
-    { ngx_string("num_range"), NGX_CONDITION_OP_NUM_RANGE, 2, 3, 0 },
-    { ngx_string("num_in"), NGX_CONDITION_OP_NUM_IN,
-      2, (ngx_uint_t) -1, 0 },
-    { ngx_string("time_range"), NGX_CONDITION_OP_TIME_RANGE, 0, 9, 0 },
-    { ngx_string("is_ip"), NGX_CONDITION_OP_IS_IP, 1, 1, 0 },
-    { ngx_string("is_cidr"), NGX_CONDITION_OP_IS_CIDR, 1, 1, 0 },
-    { ngx_string("ip_range"), NGX_CONDITION_OP_IP_RANGE,
-      2, (ngx_uint_t) -1, 0 },
+const ngx_condition_func_t  ngx_condition_funcs[] = {
+    /* Canonical entries must follow ngx_condition_func_e order. */
+    { ngx_string("not"),
+      NGX_CONDITION_FUNC_NOT,
+      1, 1,
+      0 },
+
+    { ngx_string("and"),
+      NGX_CONDITION_FUNC_AND,
+      2, (ngx_uint_t) -1,
+      0 },
+
+    { ngx_string("or"),
+      NGX_CONDITION_FUNC_OR,
+      2, (ngx_uint_t) -1,
+      0 },
+
+    { ngx_string("bool"),
+      NGX_CONDITION_FUNC_BOOL,
+      1, 1,
+      0 },
+
+    { ngx_string("is_empty"),
+      NGX_CONDITION_FUNC_IS_EMPTY,
+      1, 1,
+      0 },
+
+    { ngx_string("str_eq"),
+      NGX_CONDITION_FUNC_STR_EQ,
+      2, 2,
+      1 },
+
+    { ngx_string("str_starts_with"),
+      NGX_CONDITION_FUNC_STR_STARTS_WITH,
+      2, 2,
+      1 },
+
+    { ngx_string("str_ends_with"),
+      NGX_CONDITION_FUNC_STR_ENDS_WITH,
+      2, 2,
+      1 },
+
+    { ngx_string("str_contains"),
+      NGX_CONDITION_FUNC_STR_CONTAINS,
+      2, 2,
+      1 },
+
+    { ngx_string("str_regex_match"),
+      NGX_CONDITION_FUNC_STR_REGEX_MATCH,
+      2, 2,
+      1 },
+
+    { ngx_string("str_in"),
+      NGX_CONDITION_FUNC_STR_IN,
+      2, (ngx_uint_t) -1,
+      1 },
+
+    { ngx_string("is_num"),
+      NGX_CONDITION_FUNC_IS_NUM,
+      1, 1,
+      0 },
+
+    { ngx_string("num_eq"),
+      NGX_CONDITION_FUNC_NUM_EQ,
+      2, 2,
+      0 },
+
+    { ngx_string("num_lt"),
+      NGX_CONDITION_FUNC_NUM_LT,
+      2, 2,
+      0 },
+
+    { ngx_string("num_le"),
+      NGX_CONDITION_FUNC_NUM_LE,
+      2, 2,
+      0 },
+
+    { ngx_string("num_gt"),
+      NGX_CONDITION_FUNC_NUM_GT,
+      2, 2,
+      0 },
+
+    { ngx_string("num_ge"),
+      NGX_CONDITION_FUNC_NUM_GE,
+      2, 2,
+      0 },
+
+    { ngx_string("num_range"),
+      NGX_CONDITION_FUNC_NUM_RANGE,
+      2, 3,
+      0 },
+
+    { ngx_string("num_in"),
+      NGX_CONDITION_FUNC_NUM_IN,
+      2, (ngx_uint_t) -1,
+      0 },
+
+    { ngx_string("time_range"),
+      NGX_CONDITION_FUNC_TIME_RANGE,
+      0, 9,
+      0 },
+
+    { ngx_string("is_ip"),
+      NGX_CONDITION_FUNC_IS_IP,
+      1, 1,
+      0 },
+
+    { ngx_string("is_cidr"),
+      NGX_CONDITION_FUNC_IS_CIDR,
+      1, 1,
+      0 },
+
+    { ngx_string("ip_range"),
+      NGX_CONDITION_FUNC_IP_RANGE,
+      2, (ngx_uint_t) -1,
+      0 },
+
 #if (NGX_CJSON)
-    { ngx_string("is_json"), NGX_CONDITION_OP_IS_JSON, 1, 1, 0 },
+    { ngx_string("is_json"),
+      NGX_CONDITION_FUNC_IS_JSON,
+      1, 1,
+      0 },
 #endif
+
     /* Symbol aliases follow the canonical, enum-indexed entries. */
-    { ngx_string("="), NGX_CONDITION_OP_STR_EQ, 2, 2, 1 },
-    { ngx_string("^~"), NGX_CONDITION_OP_STR_STARTS_WITH, 2, 2, 1 },
-    { ngx_string("~$"), NGX_CONDITION_OP_STR_ENDS_WITH, 2, 2, 1 },
-    { ngx_string("~"), NGX_CONDITION_OP_STR_REGEX_MATCH, 2, 2, 1 },
-    { ngx_string("~*"), NGX_CONDITION_OP_STR_REGEX_MATCH, 2, 2, 1 },
-    { ngx_string("=="), NGX_CONDITION_OP_NUM_EQ, 2, 2, 0 },
-    { ngx_string("<"), NGX_CONDITION_OP_NUM_LT, 2, 2, 0 },
-    { ngx_string("<="), NGX_CONDITION_OP_NUM_LE, 2, 2, 0 },
-    { ngx_string(">"), NGX_CONDITION_OP_NUM_GT, 2, 2, 0 },
-    { ngx_string(">="), NGX_CONDITION_OP_NUM_GE, 2, 2, 0 },
-    { ngx_null_string, NGX_CONDITION_OP_INVALID, 0, 0, 0 }
+    { ngx_string("="),
+      NGX_CONDITION_FUNC_STR_EQ,
+      2, 2,
+      1 },
+
+    { ngx_string("^~"),
+      NGX_CONDITION_FUNC_STR_STARTS_WITH,
+      2, 2,
+      1 },
+
+    { ngx_string("~$"),
+      NGX_CONDITION_FUNC_STR_ENDS_WITH,
+      2, 2,
+      1 },
+
+    { ngx_string("~"),
+      NGX_CONDITION_FUNC_STR_REGEX_MATCH,
+      2, 2,
+      1 },
+
+    { ngx_string("~*"),
+      NGX_CONDITION_FUNC_STR_REGEX_MATCH,
+      2, 2,
+      1 },
+
+    { ngx_string("=="),
+      NGX_CONDITION_FUNC_NUM_EQ,
+      2, 2,
+      0 },
+
+    { ngx_string("<"),
+      NGX_CONDITION_FUNC_NUM_LT,
+      2, 2,
+      0 },
+
+    { ngx_string("<="),
+      NGX_CONDITION_FUNC_NUM_LE,
+      2, 2,
+      0 },
+
+    { ngx_string(">"),
+      NGX_CONDITION_FUNC_NUM_GT,
+      2, 2,
+      0 },
+
+    { ngx_string(">="),
+      NGX_CONDITION_FUNC_NUM_GE,
+      2, 2,
+      0 },
+
+    { ngx_null_string,
+      NGX_CONDITION_FUNC_INVALID,
+      0, 0,
+      0 }
 };
 
 
@@ -90,8 +222,8 @@ static ngx_int_t ngx_condition_parse_ipv4(ngx_str_t *value,
     in_addr_t *addr);
 
 
-const ngx_condition_operator_t *
-ngx_condition_find_operator(ngx_str_t *name, ngx_uint_t *negative)
+const ngx_condition_func_t *
+ngx_condition_find_func(ngx_str_t *name, ngx_uint_t *negative)
 {
     ngx_str_t   base;
     ngx_uint_t  i;
@@ -109,19 +241,19 @@ ngx_condition_find_operator(ngx_str_t *name, ngx_uint_t *negative)
         *negative = 1;
     }
 
-    for (i = 0; ngx_condition_operators[i].name.len; i++) {
-        if (ngx_condition_operators[i].name.len == base.len
-            && ngx_strncmp(ngx_condition_operators[i].name.data,
+    for (i = 0; ngx_condition_funcs[i].name.len; i++) {
+        if (ngx_condition_funcs[i].name.len == base.len
+            && ngx_strncmp(ngx_condition_funcs[i].name.data,
                            base.data, base.len) == 0)
         {
             if (*negative
-                && ngx_condition_operators[i].op
-                   <= NGX_CONDITION_OP_LOGIC_LAST)
+                && ngx_condition_funcs[i].type
+                   <= NGX_CONDITION_FUNC_LOGIC_LAST)
             {
                 return NULL;
             }
 
-            return &ngx_condition_operators[i];
+            return &ngx_condition_funcs[i];
         }
     }
 

@@ -19,48 +19,48 @@ typedef ngx_uint_t  ngx_condition_expr_id_t;
 #define NGX_CONDITION_EXPR_HIT   1
 
 
-#define NGX_CONDITION_OP_LOGIC_FIRST  NGX_CONDITION_OP_NOT
-#define NGX_CONDITION_OP_LOGIC_LAST   NGX_CONDITION_OP_OR
+#define NGX_CONDITION_FUNC_LOGIC_FIRST  NGX_CONDITION_FUNC_NOT
+#define NGX_CONDITION_FUNC_LOGIC_LAST   NGX_CONDITION_FUNC_OR
 
 
 typedef enum {
-    NGX_CONDITION_OP_NOT = 0,
-    NGX_CONDITION_OP_AND,
-    NGX_CONDITION_OP_OR,
-    NGX_CONDITION_OP_BOOL,
-    NGX_CONDITION_OP_IS_EMPTY,
-    NGX_CONDITION_OP_STR_EQ,
-    NGX_CONDITION_OP_STR_STARTS_WITH,
-    NGX_CONDITION_OP_STR_ENDS_WITH,
-    NGX_CONDITION_OP_STR_CONTAINS,
-    NGX_CONDITION_OP_STR_REGEX_MATCH,
-    NGX_CONDITION_OP_STR_IN,
-    NGX_CONDITION_OP_IS_NUM,
-    NGX_CONDITION_OP_NUM_EQ,
-    NGX_CONDITION_OP_NUM_LT,
-    NGX_CONDITION_OP_NUM_LE,
-    NGX_CONDITION_OP_NUM_GT,
-    NGX_CONDITION_OP_NUM_GE,
-    NGX_CONDITION_OP_NUM_RANGE,
-    NGX_CONDITION_OP_NUM_IN,
-    NGX_CONDITION_OP_TIME_RANGE,
-    NGX_CONDITION_OP_IS_IP,
-    NGX_CONDITION_OP_IS_CIDR,
-    NGX_CONDITION_OP_IP_RANGE,
+    NGX_CONDITION_FUNC_NOT = 0,
+    NGX_CONDITION_FUNC_AND,
+    NGX_CONDITION_FUNC_OR,
+    NGX_CONDITION_FUNC_BOOL,
+    NGX_CONDITION_FUNC_IS_EMPTY,
+    NGX_CONDITION_FUNC_STR_EQ,
+    NGX_CONDITION_FUNC_STR_STARTS_WITH,
+    NGX_CONDITION_FUNC_STR_ENDS_WITH,
+    NGX_CONDITION_FUNC_STR_CONTAINS,
+    NGX_CONDITION_FUNC_STR_REGEX_MATCH,
+    NGX_CONDITION_FUNC_STR_IN,
+    NGX_CONDITION_FUNC_IS_NUM,
+    NGX_CONDITION_FUNC_NUM_EQ,
+    NGX_CONDITION_FUNC_NUM_LT,
+    NGX_CONDITION_FUNC_NUM_LE,
+    NGX_CONDITION_FUNC_NUM_GT,
+    NGX_CONDITION_FUNC_NUM_GE,
+    NGX_CONDITION_FUNC_NUM_RANGE,
+    NGX_CONDITION_FUNC_NUM_IN,
+    NGX_CONDITION_FUNC_TIME_RANGE,
+    NGX_CONDITION_FUNC_IS_IP,
+    NGX_CONDITION_FUNC_IS_CIDR,
+    NGX_CONDITION_FUNC_IP_RANGE,
 #if (NGX_CJSON)
-    NGX_CONDITION_OP_IS_JSON,
+    NGX_CONDITION_FUNC_IS_JSON,
 #endif
-    NGX_CONDITION_OP_INVALID
-} ngx_condition_op_e;
+    NGX_CONDITION_FUNC_INVALID
+} ngx_condition_func_e;
 
 
 typedef struct {
     ngx_str_t                name;
-    ngx_condition_op_e       op;
+    ngx_condition_func_e     type;
     ngx_uint_t               min_args;
     ngx_uint_t               max_args;
     unsigned                 allow_ignore_case:1;
-} ngx_condition_operator_t;
+} ngx_condition_func_t;
 
 
 typedef struct {
@@ -200,10 +200,10 @@ typedef ngx_int_t (*ngx_condition_eval_pt)(void *data,
     ngx_condition_expr_id_t expr_id);
 
 
-extern const ngx_condition_operator_t  ngx_condition_operators[];
+extern const ngx_condition_func_t  ngx_condition_funcs[];
 
 
-const ngx_condition_operator_t *ngx_condition_find_operator(ngx_str_t *name,
+const ngx_condition_func_t *ngx_condition_find_func(ngx_str_t *name,
     ngx_uint_t *negative);
 ngx_int_t ngx_condition_registry_init(ngx_pool_t *pool,
     ngx_condition_registry_t *registry);
