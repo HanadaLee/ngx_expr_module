@@ -82,7 +82,7 @@ static char *ngx_stream_condition_merge_srv_conf(ngx_conf_t *cf,
     void *parent, void *child);
 static ngx_int_t ngx_stream_condition_postconfiguration(ngx_conf_t *cf);
 
-static char *ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd,
+static char *ngx_stream_condition(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 static char *ngx_stream_condition_when(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
@@ -372,7 +372,7 @@ static ngx_command_t  ngx_stream_condition_commands[] = {
 
     { ngx_string("condition"),
       NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_2MORE,
-      ngx_stream_condition_set,
+      ngx_stream_condition,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
@@ -420,10 +420,13 @@ ngx_uint_t
 ngx_stream_condition_to_when_cmd_type(ngx_uint_t type)
 {
     switch (type) {
+
     case NGX_STREAM_MAIN_CONF:
         return NGX_STREAM_MAIN_WHEN_CONF;
+
     case NGX_STREAM_SRV_CONF:
         return NGX_STREAM_SRV_WHEN_CONF;
+
     default:
         return 0;
     }
@@ -434,10 +437,13 @@ ngx_uint_t
 ngx_stream_condition_from_when_cmd_type(ngx_uint_t type)
 {
     switch (type) {
+
     case NGX_STREAM_MAIN_WHEN_CONF:
         return NGX_STREAM_MAIN_CONF;
+
     case NGX_STREAM_SRV_WHEN_CONF:
         return NGX_STREAM_SRV_CONF;
+
     default:
         return type;
     }
@@ -447,8 +453,8 @@ ngx_stream_condition_from_when_cmd_type(ngx_uint_t type)
 static ngx_stream_condition_func_t *
 ngx_stream_condition_find_func(ngx_str_t *name, ngx_uint_t *negative)
 {
-    ngx_str_t                    base;
-    ngx_stream_condition_func_t  *func;
+    ngx_str_t                      base;
+    ngx_stream_condition_func_t   *func;
 
     base = *name;
     *negative = 0;
@@ -482,7 +488,7 @@ ngx_stream_condition_find_func(ngx_str_t *name, ngx_uint_t *negative)
 static void *
 ngx_stream_condition_create_main_conf(ngx_conf_t *cf)
 {
-    ngx_stream_condition_main_conf_t *conf;
+    ngx_stream_condition_main_conf_t   *conf;
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_condition_main_conf_t));
     if (conf == NULL) {
@@ -500,7 +506,7 @@ ngx_stream_condition_create_main_conf(ngx_conf_t *cf)
 static void *
 ngx_stream_condition_create_srv_conf(ngx_conf_t *cf)
 {
-    ngx_stream_condition_srv_conf_t *conf;
+    ngx_stream_condition_srv_conf_t   *conf;
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_condition_srv_conf_t));
     if (conf == NULL) {
@@ -521,8 +527,8 @@ static ngx_stream_condition_scope_entry_t *
 ngx_stream_condition_find_entry(ngx_stream_condition_srv_conf_t *conf,
     ngx_condition_id_t id)
 {
-    ngx_uint_t                          i;
-    ngx_stream_condition_scope_entry_t *entry;
+    ngx_uint_t                            i;
+    ngx_stream_condition_scope_entry_t   *entry;
 
     entry = conf->entries.elts;
 
@@ -540,7 +546,7 @@ static ngx_int_t
 ngx_stream_condition_compile_value(ngx_conf_t *cf, ngx_str_t *value,
     ngx_stream_complex_value_t *complex_value)
 {
-    ngx_stream_compile_complex_value_t ccv;
+    ngx_stream_compile_complex_value_t   ccv;
 
     ngx_memzero(&ccv, sizeof(ngx_stream_compile_complex_value_t));
     ngx_memzero(complex_value, sizeof(ngx_stream_complex_value_t));
@@ -558,7 +564,7 @@ ngx_stream_condition_parse_logic(ngx_conf_t *cf,
     ngx_stream_condition_main_conf_t *cmcf,
     ngx_stream_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_uint_t  n;
+    ngx_uint_t   n;
 
     n = cf->args->nelts - first;
     definition->terms = ngx_array_create(cf->pool, n,
@@ -576,10 +582,10 @@ static ngx_int_t
 ngx_stream_condition_parse_time(ngx_conf_t *cf,
     ngx_stream_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_str_t                    part, *value;
-    ngx_int_t                    gmt_offset, rc;
-    ngx_uint_t                   i, timezone_set;
-    ngx_stream_condition_time_t *time;
+    ngx_str_t                      part, *value;
+    ngx_int_t                      gmt_offset, rc;
+    ngx_uint_t                     i, timezone_set;
+    ngx_stream_condition_time_t   *time;
 
     time = ngx_pcalloc(cf->pool, sizeof(ngx_stream_condition_time_t));
     if (time == NULL) {
@@ -663,7 +669,7 @@ static ngx_int_t
 ngx_stream_condition_parse_ip_range(ngx_conf_t *cf,
     ngx_stream_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_str_t  *value;
+    ngx_str_t   *value;
 
     value = cf->args->elts;
 
@@ -684,12 +690,12 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
     ngx_stream_condition_func_t *func,
     ngx_stream_condition_def_t *definition, ngx_uint_t first)
 {
-    ngx_str_t                  *value;
-    ngx_uint_t                  argc, i;
-    ngx_stream_complex_value_t *list_value;
+    ngx_str_t                    *value;
+    ngx_uint_t                    argc, i;
+    ngx_stream_complex_value_t   *list_value;
 #if (NGX_PCRE)
-    u_char                      errstr[NGX_MAX_CONF_ERRSTR];
-    ngx_regex_compile_t         rc;
+    u_char                        errstr[NGX_MAX_CONF_ERRSTR];
+    ngx_regex_compile_t           rc;
 #endif
 
     value = cf->args->elts;
@@ -825,18 +831,18 @@ ngx_stream_condition_parse_definition(ngx_conf_t *cf,
 
 
 static char *
-ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+ngx_stream_condition(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_condition_srv_conf_t *cscf = conf;
+    ngx_stream_condition_srv_conf_t   *cscf = conf;
 
-    ngx_str_t                          *value;
-    ngx_condition_id_t                  condition_id;
-    ngx_stream_condition_def_t         *definition, **slot;
-    ngx_condition_name_t               *name;
-    ngx_stream_condition_main_conf_t   *cmcf;
-    ngx_stream_condition_func_t        *func, *modifier;
-    ngx_stream_condition_scope_entry_t *entry;
-    ngx_uint_t                          first, modifier_negative, negative;
+    ngx_str_t                            *value;
+    ngx_condition_id_t                    condition_id;
+    ngx_stream_condition_def_t           *definition, **slot;
+    ngx_condition_name_t                 *name;
+    ngx_stream_condition_main_conf_t     *cmcf;
+    ngx_stream_condition_func_t          *func, *modifier;
+    ngx_stream_condition_scope_entry_t   *entry;
+    ngx_uint_t                            first, modifier_negative, negative;
 
     (void) cmd;
 
@@ -931,12 +937,12 @@ ngx_stream_condition_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 ngx_stream_condition_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_uint_t                        saved_cmd_type, when_type;
-    ngx_array_t                       terms;
-    ngx_condition_expr_id_t           expr_id, saved_expr_id;
-    ngx_stream_condition_main_conf_t *cmcf;
-    char                             *rv;
-    ngx_condition_registry_t         *registry;
+    ngx_uint_t                          saved_cmd_type, when_type;
+    ngx_array_t                         terms;
+    ngx_condition_expr_id_t             expr_id, saved_expr_id;
+    ngx_stream_condition_main_conf_t   *cmcf;
+    char                               *rv;
+    ngx_condition_registry_t           *registry;
 
     (void) cmd;
     (void) conf;
@@ -990,11 +996,11 @@ ngx_stream_condition_visit(ngx_conf_t *cf,
     ngx_stream_condition_srv_conf_t *conf, ngx_condition_id_t id,
     u_char *state)
 {
-    ngx_uint_t                          i, j;
-    ngx_condition_term_t               *term;
-    ngx_condition_name_t               *name;
-    ngx_stream_condition_def_t        **definition;
-    ngx_stream_condition_scope_entry_t *entry;
+    ngx_uint_t                            i, j;
+    ngx_condition_term_t                 *term;
+    ngx_condition_name_t                 *name;
+    ngx_stream_condition_def_t          **definition;
+    ngx_stream_condition_scope_entry_t   *entry;
 
     if (id >= conf->effective_nelts || conf->effective[id] == NULL) {
         return NGX_OK;
@@ -1044,8 +1050,8 @@ ngx_stream_condition_detect_cycles(ngx_conf_t *cf,
     ngx_stream_condition_main_conf_t *cmcf,
     ngx_stream_condition_srv_conf_t *conf)
 {
-    u_char     *state;
-    ngx_uint_t  i;
+    u_char      *state;
+    ngx_uint_t   i;
 
     if (conf->effective_nelts == 0) {
         return NGX_OK;
@@ -1071,10 +1077,10 @@ ngx_stream_condition_finalize_scope(ngx_conf_t *cf,
     ngx_stream_condition_srv_conf_t *conf,
     ngx_stream_condition_srv_conf_t *parent)
 {
-    size_t                              size;
-    ngx_uint_t                          i;
-    ngx_stream_condition_main_conf_t   *cmcf;
-    ngx_stream_condition_scope_entry_t *entry;
+    size_t                                size;
+    ngx_uint_t                            i;
+    ngx_stream_condition_main_conf_t     *cmcf;
+    ngx_stream_condition_scope_entry_t   *entry;
 
     if (conf->finalized) {
         return NGX_OK;
@@ -1120,8 +1126,8 @@ ngx_stream_condition_finalize_scope(ngx_conf_t *cf,
 static char *
 ngx_stream_condition_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    ngx_stream_condition_srv_conf_t *prev = parent;
-    ngx_stream_condition_srv_conf_t *conf = child;
+    ngx_stream_condition_srv_conf_t   *prev = parent;
+    ngx_stream_condition_srv_conf_t   *conf = child;
 
     if (!prev->finalized
         && ngx_stream_condition_finalize_scope(cf, prev, NULL) != NGX_OK)
@@ -1140,8 +1146,8 @@ ngx_stream_condition_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 static ngx_int_t
 ngx_stream_condition_postconfiguration(ngx_conf_t *cf)
 {
-    ngx_stream_condition_main_conf_t *cmcf;
-    ngx_stream_condition_srv_conf_t  *cscf;
+    ngx_stream_condition_main_conf_t   *cmcf;
+    ngx_stream_condition_srv_conf_t    *cscf;
 
     cmcf = ngx_stream_conf_get_module_main_conf(cf,
                                                 ngx_stream_condition_module);
@@ -1173,10 +1179,10 @@ ngx_stream_condition_time_handler(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
-    time_t                      now;
-    ngx_tm_t                    tm;
-    ngx_str_t                   value;
-    ngx_stream_condition_time_t *time;
+    time_t                         now;
+    ngx_tm_t                       tm;
+    ngx_str_t                      value;
+    ngx_stream_condition_time_t   *time;
 
     time = definition->time;
     now = ngx_time();
@@ -1217,9 +1223,9 @@ ngx_stream_condition_logic_handler(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
-    ngx_int_t              cmp;
-    ngx_uint_t             i;
-    ngx_condition_term_t  *term;
+    ngx_int_t               cmp;
+    ngx_uint_t              i;
+    ngx_condition_term_t   *term;
 
     if (definition->func->type >= NGX_CONDITION_FUNC_LOGIC_FIRST
         && definition->func->type <= NGX_CONDITION_FUNC_LOGIC_LAST)
@@ -1294,10 +1300,10 @@ ngx_stream_condition_string_handler(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
-    ngx_str_t                  a, b;
-    ngx_int_t                  result;
-    ngx_uint_t                 i;
-    ngx_stream_complex_value_t *list_value;
+    ngx_str_t                     a, b;
+    ngx_int_t                     result;
+    ngx_uint_t                    i;
+    ngx_stream_complex_value_t   *list_value;
 
     if (ngx_stream_complex_value(s, &definition->values[0], &a) != NGX_OK) {
         return 0;
@@ -1341,21 +1347,26 @@ ngx_stream_condition_string_handler(ngx_stream_session_t *s,
     }
 
     switch (definition->func->type) {
+
     case NGX_CONDITION_FUNC_STR_EQ:
         result = ngx_condition_str_eq(&a, &b, definition->ignore_case);
         break;
+
     case NGX_CONDITION_FUNC_STR_STARTS_WITH:
         result = ngx_condition_str_starts_with(
                      &a, &b, definition->ignore_case);
         break;
+
     case NGX_CONDITION_FUNC_STR_ENDS_WITH:
         result = ngx_condition_str_ends_with(
                      &a, &b, definition->ignore_case);
         break;
+
     case NGX_CONDITION_FUNC_STR_CONTAINS:
         result = ngx_condition_str_contains(
                      &a, &b, definition->ignore_case);
         break;
+
     default:
         return 0;
     }
@@ -1370,10 +1381,10 @@ ngx_stream_condition_number_handler(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
-    ngx_str_t                  a, b, zero;
-    ngx_int_t                  result;
-    ngx_uint_t                 i;
-    ngx_stream_complex_value_t *list_value;
+    ngx_str_t                     a, b, zero;
+    ngx_int_t                     result;
+    ngx_uint_t                    i;
+    ngx_stream_complex_value_t   *list_value;
 
     if (ngx_stream_complex_value(s, &definition->values[0], &a) != NGX_OK) {
         return 0;
@@ -1437,21 +1448,27 @@ ngx_stream_condition_number_handler(ngx_stream_session_t *s,
     }
 
     switch (definition->func->type) {
+
     case NGX_CONDITION_FUNC_NUM_EQ:
         result = result == 0;
         break;
+
     case NGX_CONDITION_FUNC_NUM_LT:
         result = result < 0;
         break;
+
     case NGX_CONDITION_FUNC_NUM_LE:
         result = result <= 0;
         break;
+
     case NGX_CONDITION_FUNC_NUM_GT:
         result = result > 0;
         break;
+
     case NGX_CONDITION_FUNC_NUM_GE:
         result = result >= 0;
         break;
+
     default:
         return 0;
     }
@@ -1466,10 +1483,10 @@ ngx_stream_condition_ip_handler(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
-    ngx_str_t                 value;
-    ngx_uint_t                i;
-    ngx_condition_ip_t        ip;
-    ngx_condition_ip_item_t  *item;
+    ngx_str_t                  value;
+    ngx_uint_t                 i;
+    ngx_condition_ip_t         ip;
+    ngx_condition_ip_item_t   *item;
 
     if (ngx_stream_complex_value(s, &definition->values[0], &value) != NGX_OK) {
         return 0;
@@ -1508,7 +1525,7 @@ ngx_stream_condition_json_handler(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
-    ngx_str_t  value;
+    ngx_str_t   value;
 
     if (ngx_stream_complex_value(s, &definition->values[0], &value) != NGX_OK) {
         return 0;
@@ -1527,10 +1544,10 @@ ngx_stream_condition_eval_id(ngx_stream_session_t *s,
     ngx_stream_condition_srv_conf_t *cscf, ngx_condition_id_t id,
     ngx_uint_t depth)
 {
-    ngx_int_t                           result;
-    ngx_uint_t                          i;
-    ngx_stream_condition_def_t        **definition;
-    ngx_stream_condition_scope_entry_t *entry;
+    ngx_int_t                             result;
+    ngx_uint_t                            i;
+    ngx_stream_condition_def_t          **definition;
+    ngx_stream_condition_scope_entry_t   *entry;
 
     if (id >= cscf->effective_nelts || cscf->effective[id] == NULL) {
         return 0;
@@ -1570,17 +1587,17 @@ ngx_int_t
 ngx_stream_condition_get_expr_result(ngx_stream_session_t *s,
     ngx_condition_expr_id_t expr_id)
 {
-    ngx_uint_t                       i;
-    ngx_condition_term_t            *term;
+    ngx_uint_t                          i;
+    ngx_condition_term_t               *term;
 #if (NGX_DEBUG)
-    ngx_condition_name_t            *name;
+    ngx_condition_name_t               *name;
 #endif
-    ngx_condition_when_expr_t         *expr;
-    ngx_stream_condition_main_conf_t  *cmcf;
-    ngx_stream_condition_srv_conf_t   *cscf;
-    ngx_int_t                          result;
+    ngx_condition_when_expr_t          *expr;
+    ngx_stream_condition_main_conf_t   *cmcf;
+    ngx_stream_condition_srv_conf_t    *cscf;
+    ngx_int_t                           result;
 #if (NGX_DEBUG)
-    ngx_uint_t                       type;
+    ngx_uint_t                          type;
 #endif
 
     if (expr_id == NGX_CONDITION_NO_EXPR_ID) {
@@ -1681,7 +1698,7 @@ ngx_int_t
 ngx_stream_get_conditional_complex_value(ngx_stream_session_t *s,
     ngx_array_t *values, ngx_str_t *value)
 {
-    ngx_stream_condition_complex_value_ctx_t  *ctx;
+    ngx_stream_condition_complex_value_ctx_t   *ctx;
 
     ctx = ngx_conf_get_conditional_ctx(s, values,
               sizeof(ngx_stream_condition_complex_value_ctx_t),
@@ -1702,7 +1719,7 @@ size_t
 ngx_stream_get_conditional_complex_value_size(ngx_stream_session_t *s,
     ngx_array_t *values, size_t default_value)
 {
-    ngx_stream_condition_complex_value_ctx_t  *ctx;
+    ngx_stream_condition_complex_value_ctx_t   *ctx;
 
     ctx = ngx_conf_get_conditional_ctx(s, values,
               sizeof(ngx_stream_condition_complex_value_ctx_t),
