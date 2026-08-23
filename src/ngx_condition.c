@@ -12,16 +12,34 @@ typedef void (*ngx_condition_init_value_pt)(void *ctx, size_t value_offset);
 
 
 typedef struct {
-    ngx_uint_t   negative;
-    u_char      *integer;
-    size_t       integer_len;
-    u_char      *fraction;
-    size_t       fraction_len;
+    ngx_uint_t                     negative;
+    u_char                        *integer;
+    size_t                         integer_len;
+    u_char                        *fraction;
+    size_t                         fraction_len;
 } ngx_condition_number_t;
 
 
-static ngx_condition_expr_id_t  ngx_condition_current_expr_id =
-    NGX_CONDITION_NO_EXPR_ID;
+typedef struct {
+    ngx_rbtree_node_t              node;
+    u_char                         start[NGX_CONDITION_IP_KEY_LEN];
+    u_char                         end[NGX_CONDITION_IP_KEY_LEN];
+    u_char                         max_end[NGX_CONDITION_IP_KEY_LEN];
+} ngx_condition_ip_range_node_t;
+
+
+typedef struct {
+    ngx_rbtree_t                   tree;
+    ngx_rbtree_node_t              sentinel;
+    size_t                         key_len;
+} ngx_condition_ip_range_tree_t;
+
+
+struct ngx_condition_ip_ranges_s {
+    ngx_array_t                    nodes;
+    ngx_condition_ip_range_tree_t  ipv4;
+    ngx_condition_ip_range_tree_t  ipv6;
+};
 
 
 static ngx_int_t ngx_condition_copy_str(ngx_pool_t *pool, ngx_str_t *dst,
@@ -38,6 +56,19 @@ static ngx_int_t ngx_condition_parse_number(ngx_str_t *value,
     ngx_condition_number_t *number);
 static ngx_int_t ngx_condition_parse_ipv4(ngx_str_t *value,
     in_addr_t *addr);
+static void ngx_condition_ip_range_insert_value(ngx_rbtree_node_t *temp,
+    ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
+static void ngx_condition_ip_range_update_max(ngx_rbtree_node_t *node,
+    ngx_rbtree_node_t *sentinel, size_t key_len);
+static ngx_int_t ngx_condition_ip_range_tree_match(
+    ngx_condition_ip_range_tree_t *tree, u_char *address);
+static ngx_int_t ngx_condition_ip_range_tree_match_node(
+    ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel, u_char *address,
+    size_t key_len);
+
+
+static ngx_condition_expr_id_t  ngx_condition_current_expr_id =
+    NGX_CONDITION_NO_EXPR_ID;
 
 
 ngx_int_t
@@ -77,7 +108,7 @@ ngx_condition_copy_str(ngx_pool_t *pool, ngx_str_t *dst, ngx_str_t *src)
 
 
 ngx_condition_name_t *
-ngx_condition_get_or_create_name(ngx_conf_t *cf,
+ngx_condition_get_name(ngx_conf_t *cf,
     ngx_condition_registry_t *registry, ngx_str_t *name)
 {
     ngx_uint_t              i;
@@ -143,7 +174,7 @@ ngx_condition_parse_terms(ngx_conf_t *cf,
             name.len--;
         }
 
-        entry = ngx_condition_get_or_create_name(cf, registry, &name);
+        entry = ngx_condition_get_name(cf, registry, &name);
         if (entry == NULL) {
             return NGX_ERROR;
         }
@@ -616,20 +647,57 @@ ngx_int_t
 ngx_condition_parse_ip_item(ngx_str_t *value,
     ngx_condition_ip_item_t *item)
 {
-    u_char      *dash;
-    ngx_int_t    rc;
-    ngx_str_t    first, last;
-    ngx_cidr_t   cidr;
+    u_char              *dash;
+    ngx_int_t            rc;
+    ngx_str_t            first, last;
+    ngx_cidr_t           cidr;
+    ngx_condition_ip_t   ip;
 
     ngx_memzero(item, sizeof(ngx_condition_ip_item_t));
 
-    if (value->len == sizeof("255.255.255.255") - 1
-        && ngx_strncmp(value->data, "255.255.255.255", value->len) == 0)
-    {
-        item->family = AF_INET;
-        item->addr = INADDR_NONE;
-        item->mask = 0xffffffff;
-        return NGX_OK;
+    if (ngx_condition_parse_ip(value, &ip) == NGX_OK) {
+        item->family = ip.family;
+
+        if (ip.family == AF_INET) {
+            item->addr = ip.in;
+            item->mask = 0xffffffff;
+            return NGX_OK;
+        }
+
+#if (NGX_HAVE_INET6)
+        if (ip.family == AF_INET6) {
+            ngx_memcpy(item->addr6, ip.in6, 16);
+            ngx_memset(item->mask6, 0xff, 16);
+            return NGX_OK;
+        }
+#endif
+
+        return NGX_ERROR;
+    }
+
+    if (ngx_strlchr(value->data, value->data + value->len, '/') != NULL) {
+        rc = ngx_ptocidr(value, &cidr);
+        if (rc != NGX_OK && rc != NGX_DONE) {
+            return NGX_ERROR;
+        }
+
+        item->family = cidr.family;
+
+        if (cidr.family == AF_INET) {
+            item->addr = cidr.u.in.addr;
+            item->mask = cidr.u.in.mask;
+            return NGX_OK;
+        }
+
+#if (NGX_HAVE_INET6)
+        if (cidr.family == AF_INET6) {
+            ngx_memcpy(item->addr6, cidr.u.in6.addr.s6_addr, 16);
+            ngx_memcpy(item->mask6, cidr.u.in6.mask.s6_addr, 16);
+            return NGX_OK;
+        }
+#endif
+
+        return NGX_ERROR;
     }
 
     dash = ngx_strlchr(value->data, value->data + value->len, '-');
@@ -659,27 +727,6 @@ ngx_condition_parse_ip_item(ngx_str_t *value,
         item->range = 1;
         return NGX_OK;
     }
-
-    rc = ngx_ptocidr(value, &cidr);
-    if (rc != NGX_OK && rc != NGX_DONE) {
-        return NGX_ERROR;
-    }
-
-    item->family = cidr.family;
-
-    if (cidr.family == AF_INET) {
-        item->addr = cidr.u.in.addr;
-        item->mask = cidr.u.in.mask;
-        return NGX_OK;
-    }
-
-#if (NGX_HAVE_INET6)
-    if (cidr.family == AF_INET6) {
-        ngx_memcpy(item->addr6, cidr.u.in6.addr.s6_addr, 16);
-        ngx_memcpy(item->mask6, cidr.u.in6.mask.s6_addr, 16);
-        return NGX_OK;
-    }
-#endif
 
     return NGX_ERROR;
 }
@@ -712,6 +759,229 @@ ngx_condition_parse_ip_items(ngx_conf_t *cf, ngx_uint_t first,
             return NGX_ERROR;
         }
     }
+
+    return NGX_OK;
+}
+
+
+static void
+ngx_condition_ip_range_insert_value(ngx_rbtree_node_t *temp,
+    ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel)
+{
+    ngx_int_t                      rc;
+    ngx_rbtree_node_t            **p;
+    ngx_condition_ip_range_node_t *range, *current;
+
+    range = ngx_rbtree_data(node, ngx_condition_ip_range_node_t, node);
+
+    for ( ;; ) {
+        current = ngx_rbtree_data(temp, ngx_condition_ip_range_node_t, node);
+
+        rc = ngx_memcmp(range->start, current->start,
+                        NGX_CONDITION_IP_KEY_LEN);
+        if (rc == 0) {
+            rc = ngx_memcmp(range->end, current->end,
+                            NGX_CONDITION_IP_KEY_LEN);
+        }
+
+        if (rc < 0) {
+            p = &temp->left;
+
+        } else {
+            p = &temp->right;
+        }
+
+        if (*p == sentinel) {
+            break;
+        }
+
+        temp = *p;
+    }
+
+    *p = node;
+    node->parent = temp;
+    node->left = sentinel;
+    node->right = sentinel;
+    ngx_rbt_red(node);
+}
+
+
+static void
+ngx_condition_ip_range_update_max(ngx_rbtree_node_t *node,
+    ngx_rbtree_node_t *sentinel, size_t key_len)
+{
+    ngx_condition_ip_range_node_t *range, *child;
+
+    if (node == sentinel) {
+        return;
+    }
+
+    ngx_condition_ip_range_update_max(node->left, sentinel, key_len);
+    ngx_condition_ip_range_update_max(node->right, sentinel, key_len);
+
+    range = ngx_rbtree_data(node, ngx_condition_ip_range_node_t, node);
+    ngx_memcpy(range->max_end, range->end, key_len);
+
+    if (node->left != sentinel) {
+        child = ngx_rbtree_data(node->left,
+                                ngx_condition_ip_range_node_t, node);
+        if (ngx_memcmp(child->max_end, range->max_end, key_len) > 0) {
+            ngx_memcpy(range->max_end, child->max_end, key_len);
+        }
+    }
+
+    if (node->right != sentinel) {
+        child = ngx_rbtree_data(node->right,
+                                ngx_condition_ip_range_node_t, node);
+        if (ngx_memcmp(child->max_end, range->max_end, key_len) > 0) {
+            ngx_memcpy(range->max_end, child->max_end, key_len);
+        }
+    }
+}
+
+
+static ngx_int_t
+ngx_condition_ip_range_tree_match_node(ngx_rbtree_node_t *node,
+    ngx_rbtree_node_t *sentinel, u_char *address, size_t key_len)
+{
+    ngx_int_t                      rc;
+    ngx_condition_ip_range_node_t *range, *left;
+
+    if (node == sentinel) {
+        return 0;
+    }
+
+    range = ngx_rbtree_data(node, ngx_condition_ip_range_node_t, node);
+
+    if (node->left != sentinel) {
+        left = ngx_rbtree_data(node->left,
+                               ngx_condition_ip_range_node_t, node);
+        if (ngx_memcmp(left->max_end, address, key_len) >= 0
+            && ngx_condition_ip_range_tree_match_node(node->left, sentinel,
+                                                      address, key_len))
+        {
+            return 1;
+        }
+    }
+
+    rc = ngx_memcmp(address, range->start, key_len);
+    if (rc >= 0
+        && ngx_memcmp(address, range->end, key_len) <= 0)
+    {
+        return 1;
+    }
+
+    if (rc < 0) {
+        return 0;
+    }
+
+    return ngx_condition_ip_range_tree_match_node(node->right, sentinel,
+                                                  address, key_len);
+}
+
+
+static ngx_int_t
+ngx_condition_ip_range_tree_match(ngx_condition_ip_range_tree_t *tree,
+    u_char *address)
+{
+    if (tree->tree.root == tree->tree.sentinel) {
+        return 0;
+    }
+
+    return ngx_condition_ip_range_tree_match_node(
+               tree->tree.root, tree->tree.sentinel, address, tree->key_len);
+}
+
+
+ngx_int_t
+ngx_condition_parse_ip_ranges(ngx_conf_t *cf, ngx_uint_t first,
+    ngx_condition_ip_ranges_t **ranges)
+{
+    ngx_str_t                     *value;
+    ngx_uint_t                     i, n;
+    ngx_uint_t                     j;
+    in_addr_t                      start, end;
+    ngx_condition_ip_item_t        item;
+    ngx_condition_ip_range_node_t *node;
+    ngx_condition_ip_ranges_t     *ip_ranges;
+
+    value = cf->args->elts;
+    n = cf->args->nelts - first;
+
+    ip_ranges = ngx_pcalloc(cf->pool, sizeof(ngx_condition_ip_ranges_t));
+    if (ip_ranges == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (ngx_array_init(&ip_ranges->nodes, cf->pool, n,
+                       sizeof(ngx_condition_ip_range_node_t)) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    ip_ranges->ipv4.key_len = sizeof(in_addr_t);
+    ip_ranges->ipv6.key_len = 16;
+    ngx_rbtree_init(&ip_ranges->ipv4.tree, &ip_ranges->ipv4.sentinel,
+                    ngx_condition_ip_range_insert_value);
+    ngx_rbtree_init(&ip_ranges->ipv6.tree, &ip_ranges->ipv6.sentinel,
+                    ngx_condition_ip_range_insert_value);
+
+    for (i = first; i < cf->args->nelts; i++) {
+        if (ngx_condition_parse_ip_item(&value[i], &item) != NGX_OK) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "invalid IP item \"%V\"", &value[i]);
+            return NGX_ERROR;
+        }
+
+        node = ngx_array_push(&ip_ranges->nodes);
+        if (node == NULL) {
+            return NGX_ERROR;
+        }
+
+        ngx_memzero(node, sizeof(ngx_condition_ip_range_node_t));
+
+        if (item.family == AF_INET) {
+            if (item.range) {
+                start = item.start;
+                end = item.end;
+
+            } else {
+                start = ntohl(item.addr & item.mask);
+                end = start | ntohl((uint32_t) ~item.mask);
+            }
+
+            start = htonl((uint32_t) start);
+            end = htonl((uint32_t) end);
+            ngx_memcpy(node->start, &start, sizeof(in_addr_t));
+            ngx_memcpy(node->end, &end, sizeof(in_addr_t));
+            ngx_rbtree_insert(&ip_ranges->ipv4.tree, &node->node);
+            continue;
+        }
+
+#if (NGX_HAVE_INET6)
+        if (item.family == AF_INET6) {
+            for (j = 0; j < 16; j++) {
+                node->start[j] = item.addr6[j] & item.mask6[j];
+                node->end[j] = node->start[j]
+                               | (u_char) ~item.mask6[j];
+            }
+
+            ngx_rbtree_insert(&ip_ranges->ipv6.tree, &node->node);
+            continue;
+        }
+#endif
+
+        return NGX_ERROR;
+    }
+
+    ngx_condition_ip_range_update_max(ip_ranges->ipv4.tree.root,
+                                      ip_ranges->ipv4.tree.sentinel,
+                                      ip_ranges->ipv4.key_len);
+    ngx_condition_ip_range_update_max(ip_ranges->ipv6.tree.root,
+                                      ip_ranges->ipv6.tree.sentinel,
+                                      ip_ranges->ipv6.key_len);
+
+    *ranges = ip_ranges;
 
     return NGX_OK;
 }
@@ -751,7 +1021,36 @@ ngx_condition_ip_item_matches(ngx_condition_ip_t *ip,
 }
 
 
+ngx_int_t
+ngx_condition_ip_ranges_match(ngx_condition_ip_t *ip,
+    ngx_condition_ip_ranges_t *ranges)
+{
+    u_char   address[NGX_CONDITION_IP_KEY_LEN];
+
+    if (ranges == NULL) {
+        return 0;
+    }
+
+    ngx_memzero(address, sizeof(address));
+
+    if (ip->family == AF_INET) {
+        ngx_memcpy(address, &ip->in, sizeof(in_addr_t));
+        return ngx_condition_ip_range_tree_match(&ranges->ipv4, address);
+    }
+
+#if (NGX_HAVE_INET6)
+    if (ip->family == AF_INET6) {
+        ngx_memcpy(address, ip->in6, 16);
+        return ngx_condition_ip_range_tree_match(&ranges->ipv6, address);
+    }
+#endif
+
+    return 0;
+}
+
+
 #if (NGX_CJSON)
+
 ngx_int_t
 ngx_condition_is_json(ngx_str_t *value)
 {
@@ -781,6 +1080,7 @@ ngx_condition_is_json(ngx_str_t *value)
     cJSON_Delete(json);
     return end == (const char *) value->data + value->len;
 }
+
 #endif
 
 
@@ -1031,49 +1331,238 @@ ngx_condition_merge_conditional_array(ngx_conf_t *cf, ngx_array_t **values,
 }
 
 
-#define ngx_condition_merge_helpers(name, type, ctx_type)                    \
-    ngx_int_t                                                                \
-    ngx_conf_init_conditional_##name##_value(ngx_conf_t *cf,                 \
-        ngx_array_t **values, type default_value)                            \
-    {                                                                        \
-        return ngx_condition_init_conditional_array(cf, values,              \
-                   sizeof(ctx_type), offsetof(ctx_type, value),              \
-                   sizeof(type), offsetof(ctx_type, expr_id),                \
-                   &default_value);                                          \
-    }                                                                        \
-                                                                             \
-                                                                             \
-    ngx_int_t                                                                \
-    ngx_conf_merge_conditional_##name##_value(ngx_conf_t *cf,                \
-        ngx_array_t **values, ngx_array_t *prev, type default_value)         \
-    {                                                                        \
-        return ngx_condition_merge_conditional_array(cf, values, prev,       \
-                   sizeof(ctx_type), offsetof(ctx_type, value),              \
-                   sizeof(type), offsetof(ctx_type, expr_id),                \
-                   &default_value);                                          \
-    }
+ngx_int_t
+ngx_conf_init_conditional_flag_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_flag_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_flag_ctx_t),
+               offsetof(ngx_conf_condition_flag_ctx_t, value),
+               sizeof(ngx_flag_t),
+               offsetof(ngx_conf_condition_flag_ctx_t, expr_id),
+               &default_value);
+}
 
 
-ngx_condition_merge_helpers(flag, ngx_flag_t,
-    ngx_conf_condition_flag_ctx_t)
-ngx_condition_merge_helpers(str, ngx_str_t,
-    ngx_conf_condition_str_ctx_t)
-ngx_condition_merge_helpers(num, ngx_int_t,
-    ngx_conf_condition_num_ctx_t)
-ngx_condition_merge_helpers(size, size_t,
-    ngx_conf_condition_size_ctx_t)
-ngx_condition_merge_helpers(off, off_t,
-    ngx_conf_condition_off_ctx_t)
-ngx_condition_merge_helpers(msec, ngx_msec_t,
-    ngx_conf_condition_msec_ctx_t)
-ngx_condition_merge_helpers(sec, time_t,
-    ngx_conf_condition_sec_ctx_t)
-ngx_condition_merge_helpers(enum, ngx_uint_t,
-    ngx_conf_condition_enum_ctx_t)
-ngx_condition_merge_helpers(bitmask, ngx_uint_t,
-    ngx_conf_condition_bitmask_ctx_t)
+ngx_int_t
+ngx_conf_merge_conditional_flag_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_flag_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_flag_ctx_t),
+               offsetof(ngx_conf_condition_flag_ctx_t, value),
+               sizeof(ngx_flag_t),
+               offsetof(ngx_conf_condition_flag_ctx_t, expr_id),
+               &default_value);
+}
 
-#undef ngx_condition_merge_helpers
+
+ngx_int_t
+ngx_conf_init_conditional_str_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_str_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_str_ctx_t),
+               offsetof(ngx_conf_condition_str_ctx_t, value),
+               sizeof(ngx_str_t),
+               offsetof(ngx_conf_condition_str_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_str_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_str_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_str_ctx_t),
+               offsetof(ngx_conf_condition_str_ctx_t, value),
+               sizeof(ngx_str_t),
+               offsetof(ngx_conf_condition_str_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_num_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_int_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_num_ctx_t),
+               offsetof(ngx_conf_condition_num_ctx_t, value),
+               sizeof(ngx_int_t),
+               offsetof(ngx_conf_condition_num_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_num_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_int_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_num_ctx_t),
+               offsetof(ngx_conf_condition_num_ctx_t, value),
+               sizeof(ngx_int_t),
+               offsetof(ngx_conf_condition_num_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_size_value(ngx_conf_t *cf, ngx_array_t **values,
+    size_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_size_ctx_t),
+               offsetof(ngx_conf_condition_size_ctx_t, value),
+               sizeof(size_t),
+               offsetof(ngx_conf_condition_size_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_size_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, size_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_size_ctx_t),
+               offsetof(ngx_conf_condition_size_ctx_t, value),
+               sizeof(size_t),
+               offsetof(ngx_conf_condition_size_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_off_value(ngx_conf_t *cf, ngx_array_t **values,
+    off_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_off_ctx_t),
+               offsetof(ngx_conf_condition_off_ctx_t, value),
+               sizeof(off_t),
+               offsetof(ngx_conf_condition_off_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_off_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, off_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_off_ctx_t),
+               offsetof(ngx_conf_condition_off_ctx_t, value),
+               sizeof(off_t),
+               offsetof(ngx_conf_condition_off_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_msec_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_msec_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_msec_ctx_t),
+               offsetof(ngx_conf_condition_msec_ctx_t, value),
+               sizeof(ngx_msec_t),
+               offsetof(ngx_conf_condition_msec_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_msec_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_msec_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_msec_ctx_t),
+               offsetof(ngx_conf_condition_msec_ctx_t, value),
+               sizeof(ngx_msec_t),
+               offsetof(ngx_conf_condition_msec_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_sec_value(ngx_conf_t *cf, ngx_array_t **values,
+    time_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_sec_ctx_t),
+               offsetof(ngx_conf_condition_sec_ctx_t, value),
+               sizeof(time_t),
+               offsetof(ngx_conf_condition_sec_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_sec_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, time_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_sec_ctx_t),
+               offsetof(ngx_conf_condition_sec_ctx_t, value),
+               sizeof(time_t),
+               offsetof(ngx_conf_condition_sec_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_enum_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_uint_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_enum_ctx_t),
+               offsetof(ngx_conf_condition_enum_ctx_t, value),
+               sizeof(ngx_uint_t),
+               offsetof(ngx_conf_condition_enum_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_enum_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_uint_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_enum_ctx_t),
+               offsetof(ngx_conf_condition_enum_ctx_t, value),
+               sizeof(ngx_uint_t),
+               offsetof(ngx_conf_condition_enum_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_init_conditional_bitmask_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_uint_t default_value)
+{
+    return ngx_condition_init_conditional_array(cf, values,
+               sizeof(ngx_conf_condition_bitmask_ctx_t),
+               offsetof(ngx_conf_condition_bitmask_ctx_t, value),
+               sizeof(ngx_uint_t),
+               offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id),
+               &default_value);
+}
+
+
+ngx_int_t
+ngx_conf_merge_conditional_bitmask_value(ngx_conf_t *cf, ngx_array_t **values,
+    ngx_array_t *prev, ngx_uint_t default_value)
+{
+    return ngx_condition_merge_conditional_array(cf, values, prev,
+               sizeof(ngx_conf_condition_bitmask_ctx_t),
+               offsetof(ngx_conf_condition_bitmask_ctx_t, value),
+               sizeof(ngx_uint_t),
+               offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id),
+               &default_value);
+}
 
 
 static size_t

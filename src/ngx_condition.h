@@ -6,26 +6,27 @@
 #include <ngx_core.h>
 
 
-typedef ngx_uint_t  ngx_condition_id_t;
-typedef ngx_uint_t  ngx_condition_expr_id_t;
+#define NGX_CONDITION_NAME_MAX_LEN       288
 
+#define NGX_CONDITION_NO_ID              (ngx_condition_id_t) -1
+#define NGX_CONDITION_NO_EXPR_ID         (ngx_condition_expr_id_t) -1
 
-#define NGX_CONDITION_NAME_MAX_LEN  288
-
-#define NGX_CONDITION_NO_ID       ((ngx_condition_id_t) -1)
-#define NGX_CONDITION_NO_EXPR_ID  ((ngx_condition_expr_id_t) -1)
-
-#define NGX_CONDITION_EXPR_MISS  0
-#define NGX_CONDITION_EXPR_HIT   1
+#define NGX_CONDITION_EXPR_MISS          0
+#define NGX_CONDITION_EXPR_HIT           1
 
 #define NGX_CONDITION_NO_ARGS            0
 #define NGX_CONDITION_MAX_ARGS           (ngx_uint_t) -1
 #define NGX_CONDITION_NO_IGNORE_CASE     0
 #define NGX_CONDITION_ALLOW_IGNORE_CASE  1
 
+#define NGX_CONDITION_FUNC_LOGIC_FIRST   NGX_CONDITION_FUNC_NOT
+#define NGX_CONDITION_FUNC_LOGIC_LAST    NGX_CONDITION_FUNC_OR
 
-#define NGX_CONDITION_FUNC_LOGIC_FIRST  NGX_CONDITION_FUNC_NOT
-#define NGX_CONDITION_FUNC_LOGIC_LAST   NGX_CONDITION_FUNC_OR
+#define NGX_CONDITION_IP_KEY_LEN         16
+
+
+typedef ngx_uint_t  ngx_condition_id_t;
+typedef ngx_uint_t  ngx_condition_expr_id_t;
 
 
 typedef enum {
@@ -114,6 +115,9 @@ typedef struct {
 } ngx_condition_ip_item_t;
 
 
+typedef struct ngx_condition_ip_ranges_s  ngx_condition_ip_ranges_t;
+
+
 typedef struct {
     ngx_flag_t               value;
     ngx_condition_expr_id_t  expr_id;
@@ -198,7 +202,7 @@ typedef ngx_int_t (*ngx_condition_eval_pt)(void *data,
 
 ngx_int_t ngx_condition_registry_init(ngx_pool_t *pool,
     ngx_condition_registry_t *registry);
-ngx_condition_name_t *ngx_condition_get_or_create_name(ngx_conf_t *cf,
+ngx_condition_name_t *ngx_condition_get_name(ngx_conf_t *cf,
     ngx_condition_registry_t *registry, ngx_str_t *name);
 ngx_int_t ngx_condition_parse_terms(ngx_conf_t *cf,
     ngx_condition_registry_t *registry, ngx_uint_t first,
@@ -235,8 +239,12 @@ ngx_int_t ngx_condition_parse_ip_item(ngx_str_t *value,
     ngx_condition_ip_item_t *item);
 ngx_int_t ngx_condition_parse_ip_items(ngx_conf_t *cf, ngx_uint_t first,
     ngx_array_t **items);
+ngx_int_t ngx_condition_parse_ip_ranges(ngx_conf_t *cf, ngx_uint_t first,
+    ngx_condition_ip_ranges_t **ranges);
 ngx_int_t ngx_condition_ip_item_matches(ngx_condition_ip_t *ip,
     ngx_condition_ip_item_t *item);
+ngx_int_t ngx_condition_ip_ranges_match(ngx_condition_ip_t *ip,
+    ngx_condition_ip_ranges_t *ranges);
 #if (NGX_CJSON)
 ngx_int_t ngx_condition_is_json(ngx_str_t *value);
 #endif
