@@ -75,8 +75,6 @@ typedef struct {
 
 
 typedef ngx_int_t (*ngx_stream_condition_func_pt)(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 
 
@@ -131,37 +129,21 @@ static ngx_int_t ngx_stream_condition_visit(ngx_conf_t *cf,
     u_char *state);
 
 static ngx_int_t ngx_stream_condition_eval_id(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf, ngx_condition_id_t id,
-    ngx_uint_t depth);
+    ngx_condition_id_t id, ngx_uint_t depth);
 static ngx_int_t ngx_stream_condition_logic_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_stream_condition_bool_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_stream_condition_string_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_stream_condition_number_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_stream_condition_time_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_stream_condition_ip_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 #if (NGX_CJSON)
 static ngx_int_t ngx_stream_condition_json_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth);
 #endif
 
@@ -1194,8 +1176,6 @@ ngx_stream_condition_apply_negation(ngx_stream_condition_def_t *definition,
 
 static ngx_int_t
 ngx_stream_condition_time_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     time_t                         now;
@@ -1239,8 +1219,6 @@ ngx_stream_condition_time_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_logic_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_int_t               cmp;
@@ -1253,8 +1231,7 @@ ngx_stream_condition_logic_handler(ngx_stream_session_t *s,
         term = definition->u.terms.elts;
 
         if (definition->func->type == NGX_CONDITION_FUNC_NOT) {
-            cmp = ngx_stream_condition_eval_id(s, cmcf, cscf,
-                                               term[0].condition_id, depth);
+            cmp = ngx_stream_condition_eval_id(s, term[0].condition_id, depth);
             if (term[0].negative) {
                 cmp = !cmp;
             }
@@ -1269,8 +1246,7 @@ ngx_stream_condition_logic_handler(ngx_stream_session_t *s,
         }
 
         for (i = 0; i < definition->u.terms.nelts; i++) {
-            cmp = ngx_stream_condition_eval_id(s, cmcf, cscf,
-                                               term[i].condition_id, depth);
+            cmp = ngx_stream_condition_eval_id(s, term[i].condition_id, depth);
             if (term[i].negative) {
                 cmp = !cmp;
             }
@@ -1305,8 +1281,6 @@ ngx_stream_condition_logic_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_bool_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     return ngx_stream_condition_apply_negation(definition,
@@ -1316,8 +1290,6 @@ ngx_stream_condition_bool_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_string_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                      a, b;
@@ -1409,8 +1381,6 @@ ngx_stream_condition_string_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_number_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                      a, b, zero;
@@ -1521,8 +1491,6 @@ ngx_stream_condition_number_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_ip_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                     value;
@@ -1568,8 +1536,6 @@ ngx_stream_condition_ip_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_json_handler(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf,
     ngx_stream_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t   value;
@@ -1591,14 +1557,21 @@ ngx_stream_condition_json_handler(ngx_stream_session_t *s,
 
 static ngx_int_t
 ngx_stream_condition_eval_id(ngx_stream_session_t *s,
-    ngx_stream_condition_main_conf_t *cmcf,
-    ngx_stream_condition_srv_conf_t *cscf, ngx_condition_id_t id,
-    ngx_uint_t depth)
+    ngx_condition_id_t id, ngx_uint_t depth)
 {
     ngx_int_t                             result;
     ngx_uint_t                            i;
     ngx_stream_condition_def_t          **definition;
     ngx_stream_condition_scope_entry_t   *entry;
+    ngx_stream_condition_main_conf_t     *cmcf;
+    ngx_stream_condition_srv_conf_t      *cscf;
+
+    cmcf = ngx_stream_get_module_main_conf(s, ngx_stream_condition_module);
+    cscf = ngx_stream_get_module_srv_conf(s, ngx_stream_condition_module);
+
+    if (cmcf == NULL || cscf == NULL) {
+        return 0;
+    }
 
     if (id >= cscf->effective_nelts || cscf->effective[id] == NULL) {
         return 0;
@@ -1614,8 +1587,7 @@ ngx_stream_condition_eval_id(ngx_stream_session_t *s,
     definition = entry->definitions.elts;
 
     for (i = 0; i < entry->definitions.nelts; i++) {
-        result = definition[i]->func->handler(s, cmcf, cscf, definition[i],
-                                              depth + 1);
+        result = definition[i]->func->handler(s, definition[i], depth + 1);
         ngx_log_debug5(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
                        "condition definition, id:%ui item:%ui type:%ui "
                        "result:%i depth:%ui",
@@ -1672,8 +1644,7 @@ ngx_stream_condition_get_expr_result(ngx_stream_session_t *s,
 #endif
 
     for (i = 0; i < expr->terms.nelts; i++) {
-        result = ngx_stream_condition_eval_id(s, cmcf, cscf,
-                                              term[i].condition_id, 0);
+        result = ngx_stream_condition_eval_id(s, term[i].condition_id, 0);
         if (term[i].negative) {
             result = !result;
         }

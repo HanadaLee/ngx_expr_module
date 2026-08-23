@@ -76,8 +76,6 @@ typedef struct {
 
 
 typedef ngx_int_t (*ngx_http_condition_func_pt)(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 
 
@@ -132,37 +130,21 @@ static ngx_int_t ngx_http_condition_visit(ngx_conf_t *cf,
     u_char *state);
 
 static ngx_int_t ngx_http_condition_eval_id(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf, ngx_condition_id_t id,
-    ngx_uint_t depth);
+    ngx_condition_id_t id, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_logic_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_bool_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_string_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_number_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_time_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_ip_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 #if (NGX_CJSON)
 static ngx_int_t ngx_http_condition_json_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 #endif
 
@@ -1202,8 +1184,6 @@ ngx_http_condition_apply_negation(ngx_http_condition_def_t *definition,
 
 static ngx_int_t
 ngx_http_condition_time_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     time_t                       now;
@@ -1247,8 +1227,6 @@ ngx_http_condition_time_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_logic_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_int_t               cmp;
@@ -1261,8 +1239,7 @@ ngx_http_condition_logic_handler(ngx_http_request_t *r,
         term = definition->u.terms.elts;
 
         if (definition->func->type == NGX_CONDITION_FUNC_NOT) {
-            cmp = ngx_http_condition_eval_id(r, cmcf, clcf,
-                                             term[0].condition_id, depth);
+            cmp = ngx_http_condition_eval_id(r, term[0].condition_id, depth);
             if (term[0].negative) {
                 cmp = !cmp;
             }
@@ -1277,8 +1254,7 @@ ngx_http_condition_logic_handler(ngx_http_request_t *r,
         }
 
         for (i = 0; i < definition->u.terms.nelts; i++) {
-            cmp = ngx_http_condition_eval_id(r, cmcf, clcf,
-                                             term[i].condition_id, depth);
+            cmp = ngx_http_condition_eval_id(r, term[i].condition_id, depth);
             if (term[i].negative) {
                 cmp = !cmp;
             }
@@ -1313,8 +1289,6 @@ ngx_http_condition_logic_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_bool_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     return ngx_http_condition_apply_negation(definition,
@@ -1324,8 +1298,6 @@ ngx_http_condition_bool_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_string_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                    a, b;
@@ -1417,8 +1389,6 @@ ngx_http_condition_string_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_number_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                    a, b, zero;
@@ -1529,8 +1499,6 @@ ngx_http_condition_number_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_ip_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                    value;
@@ -1576,8 +1544,6 @@ ngx_http_condition_ip_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_json_handler(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t   value;
@@ -1599,14 +1565,21 @@ ngx_http_condition_json_handler(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_condition_eval_id(ngx_http_request_t *r,
-    ngx_http_condition_main_conf_t *cmcf,
-    ngx_http_condition_loc_conf_t *clcf, ngx_condition_id_t id,
-    ngx_uint_t depth)
+    ngx_condition_id_t id, ngx_uint_t depth)
 {
     ngx_int_t                           result;
     ngx_uint_t                          i;
     ngx_http_condition_def_t          **definition;
     ngx_http_condition_scope_entry_t   *entry;
+    ngx_http_condition_main_conf_t     *cmcf;
+    ngx_http_condition_loc_conf_t      *clcf;
+
+    cmcf = ngx_http_get_module_main_conf(r, ngx_http_condition_module);
+    clcf = ngx_http_get_module_loc_conf(r, ngx_http_condition_module);
+
+    if (cmcf == NULL || clcf == NULL) {
+        return 0;
+    }
 
     if (id >= clcf->effective_nelts || clcf->effective[id] == NULL) {
         return 0;
@@ -1622,8 +1595,7 @@ ngx_http_condition_eval_id(ngx_http_request_t *r,
     definition = entry->definitions.elts;
 
     for (i = 0; i < entry->definitions.nelts; i++) {
-        result = definition[i]->func->handler(r, cmcf, clcf, definition[i],
-                                              depth + 1);
+        result = definition[i]->func->handler(r, definition[i], depth + 1);
         ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "condition definition, id:%ui item:%ui type:%ui "
                        "result:%i depth:%ui",
@@ -1680,8 +1652,7 @@ ngx_http_condition_get_expr_result(ngx_http_request_t *r,
 #endif
 
     for (i = 0; i < expr->terms.nelts; i++) {
-        result = ngx_http_condition_eval_id(r, cmcf, clcf,
-                                            term[i].condition_id, 0);
+        result = ngx_http_condition_eval_id(r, term[i].condition_id, 0);
         if (term[i].negative) {
             result = !result;
         }
