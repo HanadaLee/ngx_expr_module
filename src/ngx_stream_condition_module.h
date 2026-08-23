@@ -53,11 +53,13 @@ ngx_stream_get_conditional_flag_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_flag_ctx_t   *ctx;
+    size_t                           element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_flag_ctx_t),
-        offsetof(ngx_conf_condition_flag_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_flag_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_flag_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET;
 }
@@ -68,11 +70,13 @@ ngx_stream_get_conditional_num_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_num_ctx_t   *ctx;
+    size_t                          element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_num_ctx_t),
-        offsetof(ngx_conf_condition_num_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_num_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_num_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET;
 }
@@ -83,11 +87,13 @@ ngx_stream_get_conditional_size_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_size_ctx_t   *ctx;
+    size_t                           element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_size_ctx_t),
-        offsetof(ngx_conf_condition_size_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_size_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_size_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET_SIZE;
 }
@@ -98,11 +104,13 @@ ngx_stream_get_conditional_off_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_off_ctx_t   *ctx;
+    size_t                          element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_off_ctx_t),
-        offsetof(ngx_conf_condition_off_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_off_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_off_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET;
 }
@@ -113,11 +121,13 @@ ngx_stream_get_conditional_msec_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_msec_ctx_t   *ctx;
+    size_t                           element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_msec_ctx_t),
-        offsetof(ngx_conf_condition_msec_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_msec_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_msec_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET_MSEC;
 }
@@ -128,11 +138,13 @@ ngx_stream_get_conditional_sec_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_sec_ctx_t   *ctx;
+    size_t                          element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_sec_ctx_t),
-        offsetof(ngx_conf_condition_sec_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_sec_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_sec_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET;
 }
@@ -143,11 +155,13 @@ ngx_stream_get_conditional_enum_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_enum_ctx_t   *ctx;
+    size_t                           element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_enum_ctx_t),
-        offsetof(ngx_conf_condition_enum_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_enum_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_enum_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NGX_CONF_UNSET_UINT;
 }
@@ -158,11 +172,13 @@ ngx_stream_get_conditional_bitmask_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_bitmask_ctx_t   *ctx;
+    size_t                              element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_bitmask_ctx_t),
-        offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_bitmask_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : 0;
 }
@@ -173,11 +189,13 @@ ngx_stream_get_conditional_ptr_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_ptr_ctx_t   *ctx;
+    size_t                          element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_ptr_ctx_t),
-        offsetof(ngx_conf_condition_ptr_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_ptr_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_ptr_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NULL;
 }
@@ -188,11 +206,13 @@ ngx_stream_get_conditional_str_array_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_str_array_ctx_t   *ctx;
+    size_t                                element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_str_array_ctx_t),
-        offsetof(ngx_conf_condition_str_array_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_str_array_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_str_array_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NULL;
 }
@@ -203,11 +223,13 @@ ngx_stream_get_conditional_keyval_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_keyval_ctx_t   *ctx;
+    size_t                             element_size, expr_id_offset;
 
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_keyval_ctx_t),
-        offsetof(ngx_conf_condition_keyval_ctx_t, expr_id),
-        ngx_stream_condition_eval_expr);
+    element_size = sizeof(ngx_conf_condition_keyval_ctx_t);
+    expr_id_offset = offsetof(ngx_conf_condition_keyval_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? ctx->value : NULL;
 }
@@ -218,12 +240,13 @@ ngx_stream_get_conditional_str_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_str_ctx_t   *ctx;
-    size_t                          expr_id_offset;
+    size_t                          element_size, expr_id_offset;
 
+    element_size = sizeof(ngx_conf_condition_str_ctx_t);
     expr_id_offset = offsetof(ngx_conf_condition_str_ctx_t, expr_id);
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_str_ctx_t), expr_id_offset,
-        ngx_stream_condition_eval_expr);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? &ctx->value : NULL;
 }
@@ -234,12 +257,13 @@ ngx_stream_get_conditional_bufs_value(ngx_stream_session_t *s,
     ngx_array_t *values)
 {
     ngx_conf_condition_bufs_ctx_t   *ctx;
-    size_t                           expr_id_offset;
+    size_t                           element_size, expr_id_offset;
 
+    element_size = sizeof(ngx_conf_condition_bufs_ctx_t);
     expr_id_offset = offsetof(ngx_conf_condition_bufs_ctx_t, expr_id);
-    ctx = ngx_conf_get_conditional_ctx(s, values,
-        sizeof(ngx_conf_condition_bufs_ctx_t), expr_id_offset,
-        ngx_stream_condition_eval_expr);
+
+    ctx = ngx_conf_get_conditional_ctx(s, values, element_size, expr_id_offset,
+                                       ngx_stream_condition_eval_expr);
 
     return (ctx != NULL) ? &ctx->value : NULL;
 }

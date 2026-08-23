@@ -1209,6 +1209,7 @@ ngx_http_condition_time_handler(ngx_http_request_t *r,
     time_t                       now;
     ngx_tm_t                     tm;
     ngx_str_t                    value;
+    ngx_int_t                    result;
     ngx_http_condition_time_t   *time;
 
     time = definition->u.time;
@@ -1232,15 +1233,15 @@ ngx_http_condition_time_handler(ngx_http_request_t *r,
         ngx_gmtime(now + time->gmt_offset, &tm);
     }
 
-    return ngx_http_condition_apply_negation(
-        definition,
-        ngx_condition_range_matches(&time->year, tm.ngx_tm_year)
-        && ngx_condition_range_matches(&time->month, tm.ngx_tm_mon)
-        && ngx_condition_range_matches(&time->day, tm.ngx_tm_mday)
-        && ngx_condition_range_matches(&time->wday, tm.ngx_tm_wday)
-        && ngx_condition_range_matches(&time->hour, tm.ngx_tm_hour)
-        && ngx_condition_range_matches(&time->min, tm.ngx_tm_min)
-        && ngx_condition_range_matches(&time->sec, tm.ngx_tm_sec));
+    result = ngx_condition_range_matches(&time->year, tm.ngx_tm_year)
+             && ngx_condition_range_matches(&time->month, tm.ngx_tm_mon)
+             && ngx_condition_range_matches(&time->day, tm.ngx_tm_mday)
+             && ngx_condition_range_matches(&time->wday, tm.ngx_tm_wday)
+             && ngx_condition_range_matches(&time->hour, tm.ngx_tm_hour)
+             && ngx_condition_range_matches(&time->min, tm.ngx_tm_min)
+             && ngx_condition_range_matches(&time->sec, tm.ngx_tm_sec);
+
+    return ngx_http_condition_apply_negation(definition, result);
 }
 
 
@@ -1395,18 +1396,15 @@ ngx_http_condition_string_handler(ngx_http_request_t *r,
         break;
 
     case NGX_CONDITION_FUNC_STR_STARTS_WITH:
-        result = ngx_condition_str_starts_with(&a, &b,
-                                               definition->ignore_case);
+        result = ngx_condition_str_starts_with(&a, &b, definition->ignore_case);
         break;
 
     case NGX_CONDITION_FUNC_STR_ENDS_WITH:
-        result = ngx_condition_str_ends_with(&a, &b,
-                                             definition->ignore_case);
+        result = ngx_condition_str_ends_with(&a, &b, definition->ignore_case);
         break;
 
     case NGX_CONDITION_FUNC_STR_CONTAINS:
-        result = ngx_condition_str_contains(&a, &b,
-                                            definition->ignore_case);
+        result = ngx_condition_str_contains(&a, &b, definition->ignore_case);
         break;
 
     default:
@@ -1441,8 +1439,9 @@ ngx_http_condition_number_handler(ngx_http_request_t *r,
     }
 
     if (definition->func->type == NGX_CONDITION_FUNC_IS_NUM) {
-        return ngx_http_condition_apply_negation(definition,
-                                                 ngx_condition_is_number(&a));
+        result = ngx_condition_is_number(&a);
+
+        return ngx_http_condition_apply_negation(definition, result);
     }
 
     if (definition->func->type == NGX_CONDITION_FUNC_NUM_IN) {
@@ -1535,6 +1534,7 @@ ngx_http_condition_ip_handler(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t                    value;
+    ngx_int_t                    result;
     ngx_condition_ip_t           ip;
     ngx_http_complex_value_t    *complex_value;
 
@@ -1550,22 +1550,25 @@ ngx_http_condition_ip_handler(ngx_http_request_t *r,
     }
 
     if (definition->func->type == NGX_CONDITION_FUNC_IS_CIDR) {
-        return ngx_http_condition_apply_negation(definition,
-                                                 ngx_condition_is_cidr(&value));
+        result = ngx_condition_is_cidr(&value);
+
+        return ngx_http_condition_apply_negation(definition, result);
     }
 
     if (definition->func->type == NGX_CONDITION_FUNC_IS_IP) {
-        return ngx_http_condition_apply_negation(definition,
-                                 ngx_condition_parse_ip(&value, &ip) == NGX_OK);
+        result = ngx_condition_parse_ip(&value, &ip) == NGX_OK;
+
+        return ngx_http_condition_apply_negation(definition, result);
     }
 
     if (ngx_condition_parse_ip(&value, &ip) != NGX_OK) {
         return 0;
     }
 
-    return ngx_http_condition_apply_negation(
-        definition,
-        ngx_condition_ip_ranges_match(&ip, definition->u.ip_range.ranges));
+    result = ngx_condition_ip_ranges_match(&ip,
+                                           definition->u.ip_range.ranges);
+
+    return ngx_http_condition_apply_negation(definition, result);
 }
 
 
@@ -1578,6 +1581,7 @@ ngx_http_condition_json_handler(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition, ngx_uint_t depth)
 {
     ngx_str_t   value;
+    ngx_int_t   result;
 
     if (ngx_http_complex_value(r, &definition->u.values[0], &value)
         != NGX_OK)
@@ -1585,8 +1589,9 @@ ngx_http_condition_json_handler(ngx_http_request_t *r,
         return 0;
     }
 
-    return ngx_http_condition_apply_negation(definition,
-                                             ngx_condition_is_json(&value));
+    result = ngx_condition_is_json(&value);
+
+    return ngx_http_condition_apply_negation(definition, result);
 }
 
 #endif
@@ -1716,11 +1721,15 @@ char *
 ngx_http_set_conditional_complex_value_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_condition_call_ptr_slot(cf, cmd, conf,
-               sizeof(ngx_http_condition_complex_value_ctx_t),
-               offsetof(ngx_http_condition_complex_value_ctx_t, value),
-               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-               ngx_http_set_complex_value_slot);
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    value_offset = offsetof(ngx_http_condition_complex_value_ctx_t, value);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    return ngx_condition_call_ptr_slot(cf, cmd, conf, element_size,
+                                       value_offset, expr_id_offset,
+                                       ngx_http_set_complex_value_slot);
 }
 
 
@@ -1728,11 +1737,15 @@ char *
 ngx_http_set_conditional_complex_value_zero_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_condition_call_ptr_slot(cf, cmd, conf,
-               sizeof(ngx_http_condition_complex_value_ctx_t),
-               offsetof(ngx_http_condition_complex_value_ctx_t, value),
-               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-               ngx_http_set_complex_value_zero_slot);
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    value_offset = offsetof(ngx_http_condition_complex_value_ctx_t, value);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    return ngx_condition_call_ptr_slot(cf, cmd, conf, element_size,
+                                       value_offset, expr_id_offset,
+                                       ngx_http_set_complex_value_zero_slot);
 }
 
 
@@ -1740,11 +1753,15 @@ char *
 ngx_http_set_conditional_complex_value_size_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_condition_call_ptr_slot(cf, cmd, conf,
-               sizeof(ngx_http_condition_complex_value_ctx_t),
-               offsetof(ngx_http_condition_complex_value_ctx_t, value),
-               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-               ngx_http_set_complex_value_size_slot);
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    value_offset = offsetof(ngx_http_condition_complex_value_ctx_t, value);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    return ngx_condition_call_ptr_slot(cf, cmd, conf, element_size,
+                                       value_offset, expr_id_offset,
+                                       ngx_http_set_complex_value_size_slot);
 }
 
 
@@ -1754,11 +1771,15 @@ char *
 ngx_http_set_conditional_complex_value_msec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_condition_call_ptr_slot(cf, cmd, conf,
-               sizeof(ngx_http_condition_complex_value_ctx_t),
-               offsetof(ngx_http_condition_complex_value_ctx_t, value),
-               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-               ngx_http_set_complex_value_msec_slot);
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    value_offset = offsetof(ngx_http_condition_complex_value_ctx_t, value);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    return ngx_condition_call_ptr_slot(cf, cmd, conf, element_size,
+                                       value_offset, expr_id_offset,
+                                       ngx_http_set_complex_value_msec_slot);
 }
 
 
@@ -1766,11 +1787,15 @@ char *
 ngx_http_set_conditional_complex_value_sec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    return ngx_condition_call_ptr_slot(cf, cmd, conf,
-               sizeof(ngx_http_condition_complex_value_ctx_t),
-               offsetof(ngx_http_condition_complex_value_ctx_t, value),
-               offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-               ngx_http_set_complex_value_sec_slot);
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    value_offset = offsetof(ngx_http_condition_complex_value_ctx_t, value);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    return ngx_condition_call_ptr_slot(cf, cmd, conf, element_size,
+                                       value_offset, expr_id_offset,
+                                       ngx_http_set_complex_value_sec_slot);
 }
 
 #endif
@@ -1780,12 +1805,14 @@ ngx_int_t
 ngx_http_get_conditional_complex_value(ngx_http_request_t *r,
     ngx_array_t *values, ngx_str_t *value)
 {
+    size_t                                    element_size, expr_id_offset;
     ngx_http_condition_complex_value_ctx_t   *ctx;
 
-    ctx = ngx_conf_get_conditional_ctx(r, values,
-              sizeof(ngx_http_condition_complex_value_ctx_t),
-              offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-              ngx_http_condition_eval_expr);
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(r, values, element_size, expr_id_offset,
+                                       ngx_http_condition_eval_expr);
 
     if (ctx == NULL || ctx->value == NULL
         || ctx->value == NGX_CONF_UNSET_PTR)
@@ -1801,12 +1828,14 @@ size_t
 ngx_http_get_conditional_complex_value_size(ngx_http_request_t *r,
     ngx_array_t *values, size_t default_value)
 {
+    size_t                                    element_size, expr_id_offset;
     ngx_http_condition_complex_value_ctx_t   *ctx;
 
-    ctx = ngx_conf_get_conditional_ctx(r, values,
-              sizeof(ngx_http_condition_complex_value_ctx_t),
-              offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-              ngx_http_condition_eval_expr);
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(r, values, element_size, expr_id_offset,
+                                       ngx_http_condition_eval_expr);
 
     if (ctx == NULL || ctx->value == NGX_CONF_UNSET_PTR) {
         return default_value;
@@ -1822,12 +1851,14 @@ ngx_msec_t
 ngx_http_get_conditional_complex_value_msec(ngx_http_request_t *r,
     ngx_array_t *values, ngx_msec_t default_value)
 {
+    size_t                                    element_size, expr_id_offset;
     ngx_http_condition_complex_value_ctx_t   *ctx;
 
-    ctx = ngx_conf_get_conditional_ctx(r, values,
-              sizeof(ngx_http_condition_complex_value_ctx_t),
-              offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-              ngx_http_condition_eval_expr);
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(r, values, element_size, expr_id_offset,
+                                       ngx_http_condition_eval_expr);
 
     if (ctx == NULL || ctx->value == NGX_CONF_UNSET_PTR) {
         return default_value;
@@ -1841,12 +1872,14 @@ time_t
 ngx_http_get_conditional_complex_value_sec(ngx_http_request_t *r,
     ngx_array_t *values, time_t default_value)
 {
+    size_t                                    element_size, expr_id_offset;
     ngx_http_condition_complex_value_ctx_t   *ctx;
 
-    ctx = ngx_conf_get_conditional_ctx(r, values,
-              sizeof(ngx_http_condition_complex_value_ctx_t),
-              offsetof(ngx_http_condition_complex_value_ctx_t, expr_id),
-              ngx_http_condition_eval_expr);
+    element_size = sizeof(ngx_http_condition_complex_value_ctx_t);
+    expr_id_offset = offsetof(ngx_http_condition_complex_value_ctx_t, expr_id);
+
+    ctx = ngx_conf_get_conditional_ctx(r, values, element_size, expr_id_offset,
+                                       ngx_http_condition_eval_expr);
 
     if (ctx == NULL || ctx->value == NGX_CONF_UNSET_PTR) {
         return default_value;

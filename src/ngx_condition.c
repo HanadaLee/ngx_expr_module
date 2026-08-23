@@ -1335,12 +1335,16 @@ ngx_int_t
 ngx_conf_init_conditional_flag_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_flag_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_flag_ctx_t),
-               offsetof(ngx_conf_condition_flag_ctx_t, value),
-               sizeof(ngx_flag_t),
-               offsetof(ngx_conf_condition_flag_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_flag_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_flag_ctx_t, value);
+    value_size = sizeof(ngx_flag_t);
+    expr_id_offset = offsetof(ngx_conf_condition_flag_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1348,12 +1352,17 @@ ngx_int_t
 ngx_conf_merge_conditional_flag_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_flag_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_flag_ctx_t),
-               offsetof(ngx_conf_condition_flag_ctx_t, value),
-               sizeof(ngx_flag_t),
-               offsetof(ngx_conf_condition_flag_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_flag_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_flag_ctx_t, value);
+    value_size = sizeof(ngx_flag_t);
+    expr_id_offset = offsetof(ngx_conf_condition_flag_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1361,12 +1370,16 @@ ngx_int_t
 ngx_conf_init_conditional_str_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_str_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_str_ctx_t),
-               offsetof(ngx_conf_condition_str_ctx_t, value),
-               sizeof(ngx_str_t),
-               offsetof(ngx_conf_condition_str_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_str_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_str_ctx_t, value);
+    value_size = sizeof(ngx_str_t);
+    expr_id_offset = offsetof(ngx_conf_condition_str_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1374,12 +1387,17 @@ ngx_int_t
 ngx_conf_merge_conditional_str_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_str_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_str_ctx_t),
-               offsetof(ngx_conf_condition_str_ctx_t, value),
-               sizeof(ngx_str_t),
-               offsetof(ngx_conf_condition_str_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_str_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_str_ctx_t, value);
+    value_size = sizeof(ngx_str_t);
+    expr_id_offset = offsetof(ngx_conf_condition_str_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1387,12 +1405,16 @@ ngx_int_t
 ngx_conf_init_conditional_num_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_int_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_num_ctx_t),
-               offsetof(ngx_conf_condition_num_ctx_t, value),
-               sizeof(ngx_int_t),
-               offsetof(ngx_conf_condition_num_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_num_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_num_ctx_t, value);
+    value_size = sizeof(ngx_int_t);
+    expr_id_offset = offsetof(ngx_conf_condition_num_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1400,12 +1422,17 @@ ngx_int_t
 ngx_conf_merge_conditional_num_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_int_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_num_ctx_t),
-               offsetof(ngx_conf_condition_num_ctx_t, value),
-               sizeof(ngx_int_t),
-               offsetof(ngx_conf_condition_num_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_num_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_num_ctx_t, value);
+    value_size = sizeof(ngx_int_t);
+    expr_id_offset = offsetof(ngx_conf_condition_num_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1413,12 +1440,16 @@ ngx_int_t
 ngx_conf_init_conditional_size_value(ngx_conf_t *cf, ngx_array_t **values,
     size_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_size_ctx_t),
-               offsetof(ngx_conf_condition_size_ctx_t, value),
-               sizeof(size_t),
-               offsetof(ngx_conf_condition_size_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_size_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_size_ctx_t, value);
+    value_size = sizeof(size_t);
+    expr_id_offset = offsetof(ngx_conf_condition_size_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1426,12 +1457,17 @@ ngx_int_t
 ngx_conf_merge_conditional_size_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, size_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_size_ctx_t),
-               offsetof(ngx_conf_condition_size_ctx_t, value),
-               sizeof(size_t),
-               offsetof(ngx_conf_condition_size_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_size_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_size_ctx_t, value);
+    value_size = sizeof(size_t);
+    expr_id_offset = offsetof(ngx_conf_condition_size_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1439,12 +1475,16 @@ ngx_int_t
 ngx_conf_init_conditional_off_value(ngx_conf_t *cf, ngx_array_t **values,
     off_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_off_ctx_t),
-               offsetof(ngx_conf_condition_off_ctx_t, value),
-               sizeof(off_t),
-               offsetof(ngx_conf_condition_off_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_off_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_off_ctx_t, value);
+    value_size = sizeof(off_t);
+    expr_id_offset = offsetof(ngx_conf_condition_off_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1452,12 +1492,17 @@ ngx_int_t
 ngx_conf_merge_conditional_off_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, off_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_off_ctx_t),
-               offsetof(ngx_conf_condition_off_ctx_t, value),
-               sizeof(off_t),
-               offsetof(ngx_conf_condition_off_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_off_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_off_ctx_t, value);
+    value_size = sizeof(off_t);
+    expr_id_offset = offsetof(ngx_conf_condition_off_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1465,12 +1510,16 @@ ngx_int_t
 ngx_conf_init_conditional_msec_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_msec_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_msec_ctx_t),
-               offsetof(ngx_conf_condition_msec_ctx_t, value),
-               sizeof(ngx_msec_t),
-               offsetof(ngx_conf_condition_msec_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_msec_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_msec_ctx_t, value);
+    value_size = sizeof(ngx_msec_t);
+    expr_id_offset = offsetof(ngx_conf_condition_msec_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1478,12 +1527,17 @@ ngx_int_t
 ngx_conf_merge_conditional_msec_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_msec_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_msec_ctx_t),
-               offsetof(ngx_conf_condition_msec_ctx_t, value),
-               sizeof(ngx_msec_t),
-               offsetof(ngx_conf_condition_msec_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_msec_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_msec_ctx_t, value);
+    value_size = sizeof(ngx_msec_t);
+    expr_id_offset = offsetof(ngx_conf_condition_msec_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1491,12 +1545,16 @@ ngx_int_t
 ngx_conf_init_conditional_sec_value(ngx_conf_t *cf, ngx_array_t **values,
     time_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_sec_ctx_t),
-               offsetof(ngx_conf_condition_sec_ctx_t, value),
-               sizeof(time_t),
-               offsetof(ngx_conf_condition_sec_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_sec_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_sec_ctx_t, value);
+    value_size = sizeof(time_t);
+    expr_id_offset = offsetof(ngx_conf_condition_sec_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1504,12 +1562,17 @@ ngx_int_t
 ngx_conf_merge_conditional_sec_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, time_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_sec_ctx_t),
-               offsetof(ngx_conf_condition_sec_ctx_t, value),
-               sizeof(time_t),
-               offsetof(ngx_conf_condition_sec_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_sec_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_sec_ctx_t, value);
+    value_size = sizeof(time_t);
+    expr_id_offset = offsetof(ngx_conf_condition_sec_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1517,12 +1580,16 @@ ngx_int_t
 ngx_conf_init_conditional_enum_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_uint_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_enum_ctx_t),
-               offsetof(ngx_conf_condition_enum_ctx_t, value),
-               sizeof(ngx_uint_t),
-               offsetof(ngx_conf_condition_enum_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_enum_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_enum_ctx_t, value);
+    value_size = sizeof(ngx_uint_t);
+    expr_id_offset = offsetof(ngx_conf_condition_enum_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1530,12 +1597,17 @@ ngx_int_t
 ngx_conf_merge_conditional_enum_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_uint_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_enum_ctx_t),
-               offsetof(ngx_conf_condition_enum_ctx_t, value),
-               sizeof(ngx_uint_t),
-               offsetof(ngx_conf_condition_enum_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_enum_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_enum_ctx_t, value);
+    value_size = sizeof(ngx_uint_t);
+    expr_id_offset = offsetof(ngx_conf_condition_enum_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1543,12 +1615,16 @@ ngx_int_t
 ngx_conf_init_conditional_bitmask_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_uint_t default_value)
 {
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_bitmask_ctx_t),
-               offsetof(ngx_conf_condition_bitmask_ctx_t, value),
-               sizeof(ngx_uint_t),
-               offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_bitmask_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, value);
+    value_size = sizeof(ngx_uint_t);
+    expr_id_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1556,12 +1632,17 @@ ngx_int_t
 ngx_conf_merge_conditional_bitmask_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_uint_t default_value)
 {
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_bitmask_ctx_t),
-               offsetof(ngx_conf_condition_bitmask_ctx_t, value),
-               sizeof(ngx_uint_t),
-               offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id),
-               &default_value);
+    size_t   element_size, value_offset, value_size, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_bitmask_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, value);
+    value_size = sizeof(ngx_uint_t);
+    expr_id_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1584,15 +1665,16 @@ ngx_int_t
 ngx_conf_init_conditional_ptr_value(ngx_conf_t *cf, ngx_array_t **values,
     void *default_value)
 {
-    size_t   element_size;
+    size_t   element_size, value_offset, value_size, expr_id_offset;
 
     element_size = ngx_condition_ptr_ctx_size(*values, NULL);
+    value_offset = offsetof(ngx_conf_condition_ptr_ctx_t, value);
+    value_size = sizeof(void *);
+    expr_id_offset = offsetof(ngx_conf_condition_ptr_ctx_t, expr_id);
 
     return ngx_condition_init_conditional_array(cf, values, element_size,
-               offsetof(ngx_conf_condition_ptr_ctx_t, value),
-               sizeof(void *),
-               offsetof(ngx_conf_condition_ptr_ctx_t, expr_id),
-               &default_value);
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1600,16 +1682,15 @@ ngx_int_t
 ngx_conf_merge_conditional_ptr_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, void *default_value)
 {
-    size_t   element_size, value_offset, expr_id_offset;
+    size_t   element_size, value_offset, value_size, expr_id_offset;
 
     element_size = ngx_condition_ptr_ctx_size(*values, prev);
     value_offset = offsetof(ngx_conf_condition_ptr_ctx_t, value);
+    value_size = sizeof(void *);
     expr_id_offset = offsetof(ngx_conf_condition_ptr_ctx_t, expr_id);
 
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-                                                 element_size,
-                                                 value_offset,
-                                                 sizeof(void *),
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
                                                  expr_id_offset,
                                                  &default_value);
 }
@@ -1620,16 +1701,19 @@ ngx_conf_init_conditional_bufs_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_uint_t default_num, size_t default_size)
 {
     ngx_bufs_t   default_value;
+    size_t       element_size, value_offset, value_size, expr_id_offset;
 
     default_value.num = default_num;
     default_value.size = default_size;
 
-    return ngx_condition_init_conditional_array(cf, values,
-               sizeof(ngx_conf_condition_bufs_ctx_t),
-               offsetof(ngx_conf_condition_bufs_ctx_t, value),
-               sizeof(ngx_bufs_t),
-               offsetof(ngx_conf_condition_bufs_ctx_t, expr_id),
-               &default_value);
+    element_size = sizeof(ngx_conf_condition_bufs_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_bufs_ctx_t, value);
+    value_size = sizeof(ngx_bufs_t);
+    expr_id_offset = offsetof(ngx_conf_condition_bufs_ctx_t, expr_id);
+
+    return ngx_condition_init_conditional_array(cf, values, element_size,
+                                                value_offset, value_size,
+                                                expr_id_offset, &default_value);
 }
 
 
@@ -1638,16 +1722,20 @@ ngx_conf_merge_conditional_bufs_value(ngx_conf_t *cf, ngx_array_t **values,
     ngx_array_t *prev, ngx_uint_t default_num, size_t default_size)
 {
     ngx_bufs_t   default_value;
+    size_t       element_size, value_offset, value_size, expr_id_offset;
 
     default_value.num = default_num;
     default_value.size = default_size;
 
-    return ngx_condition_merge_conditional_array(cf, values, prev,
-               sizeof(ngx_conf_condition_bufs_ctx_t),
-               offsetof(ngx_conf_condition_bufs_ctx_t, value),
-               sizeof(ngx_bufs_t),
-               offsetof(ngx_conf_condition_bufs_ctx_t, expr_id),
-               &default_value);
+    element_size = sizeof(ngx_conf_condition_bufs_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_bufs_ctx_t, value);
+    value_size = sizeof(ngx_bufs_t);
+    expr_id_offset = offsetof(ngx_conf_condition_bufs_ctx_t, expr_id);
+
+    return ngx_condition_merge_conditional_array(cf, values, prev, element_size,
+                                                 value_offset, value_size,
+                                                 expr_id_offset,
+                                                 &default_value);
 }
 
 
@@ -1853,13 +1941,14 @@ char *
 ngx_conf_set_conditional_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_flag_ctx_t),
-                                   offsetof(ngx_conf_condition_flag_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_flag_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_flag,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_flag_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_flag_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_flag_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_flag,
                                    ngx_conf_set_flag_slot);
 }
 
@@ -1868,13 +1957,14 @@ char *
 ngx_conf_set_conditional_str_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_str_ctx_t),
-                                   offsetof(ngx_conf_condition_str_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_str_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_str,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_str_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_str_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_str_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_str,
                                    ngx_conf_set_str_slot);
 }
 
@@ -1883,13 +1973,14 @@ char *
 ngx_conf_set_conditional_str_array_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_str_array_ctx_t),
-                                   offsetof(ngx_conf_condition_str_array_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_str_array_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_ptr,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_str_array_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_str_array_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_str_array_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_ptr,
                                    ngx_conf_set_str_array_slot);
 }
 
@@ -1898,13 +1989,14 @@ char *
 ngx_conf_set_conditional_keyval_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_keyval_ctx_t),
-                                   offsetof(ngx_conf_condition_keyval_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_keyval_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_ptr,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_keyval_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_keyval_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_keyval_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_ptr,
                                    ngx_conf_set_keyval_slot);
 }
 
@@ -1913,13 +2005,14 @@ char *
 ngx_conf_set_conditional_num_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_num_ctx_t),
-                                   offsetof(ngx_conf_condition_num_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_num_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_num,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_num_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_num_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_num_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_num,
                                    ngx_conf_set_num_slot);
 }
 
@@ -1928,13 +2021,14 @@ char *
 ngx_conf_set_conditional_size_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_size_ctx_t),
-                                   offsetof(ngx_conf_condition_size_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_size_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_size,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_size_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_size_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_size_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_size,
                                    ngx_conf_set_size_slot);
 }
 
@@ -1943,13 +2037,14 @@ char *
 ngx_conf_set_conditional_off_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_off_ctx_t),
-                                   offsetof(ngx_conf_condition_off_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_off_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_off,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_off_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_off_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_off_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_off,
                                    ngx_conf_set_off_slot);
 }
 
@@ -1958,13 +2053,14 @@ char *
 ngx_conf_set_conditional_msec_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_msec_ctx_t),
-                                   offsetof(ngx_conf_condition_msec_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_msec_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_msec,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_msec_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_msec_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_msec_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_msec,
                                    ngx_conf_set_msec_slot);
 }
 
@@ -1973,13 +2069,14 @@ char *
 ngx_conf_set_conditional_sec_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_sec_ctx_t),
-                                   offsetof(ngx_conf_condition_sec_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_sec_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_sec,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_sec_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_sec_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_sec_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_sec,
                                    ngx_conf_set_sec_slot);
 }
 
@@ -1988,13 +2085,14 @@ char *
 ngx_conf_set_conditional_bufs_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_bufs_ctx_t),
-                                   offsetof(ngx_conf_condition_bufs_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_bufs_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_bufs,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_bufs_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_bufs_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_bufs_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_bufs,
                                    ngx_conf_set_bufs_slot);
 }
 
@@ -2003,13 +2101,14 @@ char *
 ngx_conf_set_conditional_enum_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_enum_ctx_t),
-                                   offsetof(ngx_conf_condition_enum_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_enum_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_enum,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_enum_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_enum_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_enum_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_enum,
                                    ngx_conf_set_enum_slot);
 }
 
@@ -2018,12 +2117,13 @@ char *
 ngx_conf_set_conditional_bitmask_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    return ngx_condition_call_slot(cf, cmd, conf,
-                                   sizeof(ngx_conf_condition_bitmask_ctx_t),
-                                   offsetof(ngx_conf_condition_bitmask_ctx_t,
-                                            value),
-                                   offsetof(ngx_conf_condition_bitmask_ctx_t,
-                                            expr_id),
-                                   ngx_condition_init_bitmask,
+    size_t   element_size, value_offset, expr_id_offset;
+
+    element_size = sizeof(ngx_conf_condition_bitmask_ctx_t);
+    value_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, value);
+    expr_id_offset = offsetof(ngx_conf_condition_bitmask_ctx_t, expr_id);
+
+    return ngx_condition_call_slot(cf, cmd, conf, element_size, value_offset,
+                                   expr_id_offset, ngx_condition_init_bitmask,
                                    ngx_conf_set_bitmask_slot);
 }
