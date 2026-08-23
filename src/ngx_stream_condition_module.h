@@ -1,3 +1,9 @@
+
+/*
+ * Copyright (C) Hanada
+ */
+
+
 #ifndef _NGX_STREAM_CONDITION_MODULE_H_INCLUDED_
 #define _NGX_STREAM_CONDITION_MODULE_H_INCLUDED_
 

@@ -1,3 +1,9 @@
+
+/*
+ * Copyright (C) Hanada
+ */
+
+
 #ifndef _NGX_CONDITION_H_INCLUDED_
 #define _NGX_CONDITION_H_INCLUDED_
 
