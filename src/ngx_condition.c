@@ -7,7 +7,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#if (NGX_CJSON)
+#if (nginx_version >= 1031005)
+#include <ngx_json_parse.h>
+#elif (NGX_CJSON)
 #include <cjson/cJSON.h>
 #endif
 
@@ -1055,11 +1057,16 @@ ngx_condition_ip_ranges_match(ngx_condition_ip_t *ip,
 }
 
 
-#if (NGX_CJSON)
+#if (nginx_version >= 1031005 || NGX_CJSON)
 
 ngx_int_t
-ngx_condition_is_json(ngx_str_t *value)
+ngx_condition_is_json(ngx_pool_t *pool, ngx_str_t *value)
 {
+#if (nginx_version >= 1031005)
+
+    return ngx_json_parse(pool, value, NULL, NULL) == NGX_OK;
+
+#else
     const char   *end;
     cJSON        *json;
 
@@ -1085,6 +1092,7 @@ ngx_condition_is_json(ngx_str_t *value)
 
     cJSON_Delete(json);
     return end == (const char *) value->data + value->len;
+#endif
 }
 
 #endif

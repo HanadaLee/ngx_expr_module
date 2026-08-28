@@ -12,28 +12,39 @@ fi
 
 have=NGX_CONDITION . auto/have
 
-ngx_condition_cjson_libs=
+ngx_condition_nginx_version=`awk '$1 == "#define" && $2 == "nginx_version" {
+                                      print $3
+                                  }' src/core/nginx.h`
 
-ngx_feature="cJSON library"
-ngx_feature_name="NGX_CJSON"
-ngx_feature_run=no
-ngx_feature_incs="#include <cjson/cJSON.h>"
-ngx_feature_path=
-ngx_feature_libs="-lcjson"
-ngx_feature_test="const char *end = NULL;
-                  cJSON *json = cJSON_ParseWithLengthOpts(\"{}\", 2,
-                                                          &end, 0);
-                  if (json) cJSON_Delete(json);"
-. auto/feature
+if [ -n "$ngx_condition_nginx_version" \
+     -a "$ngx_condition_nginx_version" -ge 1031005 ]; then
+    ngx_condition_cjson_libs=
 
-if [ "$ngx_found" = yes ]; then
-    ngx_condition_cjson_libs="$ngx_feature_libs"
 else
-    cat << END
+    ngx_condition_cjson_libs=
+
+    ngx_feature="cJSON library"
+    ngx_feature_name="NGX_CJSON"
+    ngx_feature_run=no
+    ngx_feature_incs="#include <cjson/cJSON.h>"
+    ngx_feature_path=
+    ngx_feature_libs="-lcjson"
+    ngx_feature_test="const char *end = NULL;
+                      cJSON *json = cJSON_ParseWithLengthOpts(\"{}\", 2,
+                                                              &end, 0);
+                      if (json) cJSON_Delete(json);"
+    . auto/feature
+
+    if [ "$ngx_found" = yes ]; then
+        ngx_condition_cjson_libs="$ngx_feature_libs"
+
+    else
+        cat << END
 
 $0: warning: cJSON library not found, is_json condition will not be available
 
 END
+    fi
 fi
 
 ngx_condition_incs="$ngx_addon_dir/src"

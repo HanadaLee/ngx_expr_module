@@ -149,7 +149,7 @@ static ngx_int_t ngx_http_condition_time_handler(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 static ngx_int_t ngx_http_condition_ip_handler(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
-#if (NGX_CJSON)
+#if (nginx_version >= 1031005 || NGX_CJSON)
 static ngx_int_t ngx_http_condition_json_handler(ngx_http_request_t *r,
     ngx_http_condition_def_t *definition, ngx_uint_t depth);
 #endif
@@ -295,7 +295,7 @@ static ngx_http_condition_func_t  ngx_http_condition_funcs[] = {
       2, NGX_CONDITION_MAX_ARGS,
       NGX_CONDITION_NO_IGNORE_CASE },
 
-#if (NGX_CJSON)
+#if (nginx_version >= 1031005 || NGX_CJSON)
     { ngx_string("is_json"),
       ngx_http_condition_json_handler,
       NGX_CONDITION_FUNC_IS_JSON,
@@ -1546,7 +1546,7 @@ ngx_http_condition_ip_handler(ngx_http_request_t *r,
 }
 
 
-#if (NGX_CJSON)
+#if (nginx_version >= 1031005 || NGX_CJSON)
 
 static ngx_int_t
 ngx_http_condition_json_handler(ngx_http_request_t *r,
@@ -1561,7 +1561,7 @@ ngx_http_condition_json_handler(ngx_http_request_t *r,
         return 0;
     }
 
-    result = ngx_condition_is_json(&value);
+    result = ngx_condition_is_json(r->pool, &value);
 
     return ngx_http_condition_apply_negation(definition, result);
 }

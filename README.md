@@ -112,7 +112,8 @@ Prefixing a name with `!` negates only that term.
 - An NGINX source tree.
 - A C compiler and the normal NGINX build dependencies.
 - PCRE support in the NGINX build when `str_regex_match` is used.
-- The cJSON development library only when `is_json` is required.
+- The cJSON development library only when `is_json` is required with nginx
+  versions earlier than 1.31.5.
 
 The addon may register its HTTP module, its Stream module, or both, depending
 on which subsystems are enabled in the NGINX build. Enable Stream explicitly
@@ -120,10 +121,11 @@ with `--with-stream` when it is needed.
 
 ### Optional cJSON support
 
-The `config` script probes the system cJSON library and defines `NGX_CJSON`
-when the header, library, and length-aware parsing API are available. If the
-probe fails, the rest of the module still builds, but `is_json` is not
-registered as a condition type.
+With nginx 1.31.5 and later, `is_json` uses the nginx core JSON parser and does
+not require cJSON. With earlier nginx versions, the `config` script probes the
+system cJSON library and defines `NGX_CJSON` when the header, library, and
+length-aware parsing API are available. If the probe fails, the rest of the
+module still builds, but `is_json` is not registered as a condition type.
 
 Common packages are:
 
@@ -422,10 +424,10 @@ The items are alternatives and are evaluated with OR.
 condition name is_json complex_value;
 ```
 
-`is_json` validates the complete value using cJSON and accepts any valid JSON
-value, including objects, arrays, strings, numbers, booleans, and `null`. The
-parse tree is released immediately after validation. This operator exists only
-when the build probe defines `NGX_CJSON`.
+`is_json` validates the complete value and accepts any valid JSON value,
+including objects, arrays, strings, numbers, booleans, and `null`. It uses the
+nginx core JSON parser with nginx 1.31.5 and later, and cJSON with earlier
+versions.
 
 ### Scope, inheritance, and repeated definitions
 
@@ -809,7 +811,8 @@ details at normal log levels.
 - A directive is not condition-aware until its owning module explicitly opts
   in and evaluates the associated expression.
 - `str_regex_match` requires NGINX PCRE support.
-- `is_json` is omitted when the system cJSON development library is unavailable.
+- With nginx versions earlier than 1.31.5, `is_json` is omitted when the system
+  cJSON development library is unavailable.
 - Expression and condition IDs are valid only for one configuration cycle and
   can change after a reload.
 - Expression results are intentionally not cached.
@@ -838,9 +841,10 @@ TEST_NGINX_BINARY=/path/to/nginx-1.31.3/objs/nginx \
 ```
 
 The suite covers HTTP and Stream operators, invalid configurations, scope
-inheritance, and condition-aware built-in directives. The cJSON test is skipped
-when the build does not provide cJSON. Set `TEST_NGINX_VERBOSE=1` for verbose
-protocol logging or `TEST_NGINX_LEAVE=1` to retain temporary test directories.
+inheritance, and condition-aware built-in directives. The JSON test is skipped
+when the build does not provide `is_json`. Set `TEST_NGINX_VERBOSE=1` for
+verbose protocol logging or `TEST_NGINX_LEAVE=1` to retain temporary test
+directories.
 
 ## Author
 

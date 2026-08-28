@@ -59,7 +59,7 @@ typedef enum {
     NGX_CONDITION_FUNC_IS_IP,
     NGX_CONDITION_FUNC_IS_CIDR,
     NGX_CONDITION_FUNC_IP_RANGE,
-#if (NGX_CJSON)
+#if (nginx_version >= 1031005 || NGX_CJSON)
     NGX_CONDITION_FUNC_IS_JSON,
 #endif
     NGX_CONDITION_FUNC_INVALID
@@ -251,8 +251,8 @@ ngx_int_t ngx_condition_ip_item_matches(ngx_condition_ip_t *ip,
     ngx_condition_ip_item_t *item);
 ngx_int_t ngx_condition_ip_ranges_match(ngx_condition_ip_t *ip,
     ngx_condition_ip_ranges_t *ranges);
-#if (NGX_CJSON)
-ngx_int_t ngx_condition_is_json(ngx_str_t *value);
+#if (nginx_version >= 1031005 || NGX_CJSON)
+ngx_int_t ngx_condition_is_json(ngx_pool_t *pool, ngx_str_t *value);
 #endif
 
 ngx_condition_expr_id_t ngx_condition_get_current_expr_id(void);
