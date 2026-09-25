@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Tests for condition-aware nginx HTTP directives.
+# Tests for expr-aware nginx HTTP directives.
 
 ###############################################################################
 
@@ -18,7 +18,7 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
-    ->has(qw/http gzip sub ngx_condition_module/)
+    ->has(qw/http gzip sub ngx_expr_module/)
     ->plan(7);
 
 $t->write_file_expand('nginx.conf', <<'EOF');
@@ -37,9 +37,9 @@ http {
         listen       127.0.0.1:8080;
         server_name  localhost;
 
-        condition do_gzip = $arg_gzip 1;
-        condition do_sub = $arg_sub 1;
-        condition do_error = $arg_error 1;
+        expr do_gzip = $arg_gzip 1;
+        expr do_sub = $arg_sub 1;
+        expr do_error = $arg_error 1;
 
         when do_gzip {
             gzip on;

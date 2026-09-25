@@ -19,7 +19,7 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
-    ->has(qw/http stream stream_return ngx_condition_module/)
+    ->has(qw/http stream stream_return ngx_expr_module/)
     ->plan(12);
 
 $t->write_file_expand('nginx.conf', <<'EOF');
@@ -38,13 +38,13 @@ http {
         listen       127.0.0.1:8080;
         server_name  localhost;
 
-        condition ip_single ip_range $arg_ip 127.0.0.1;
-        condition ip_cidr ip_range $arg_ip 10.0.0.0/8;
-        condition ip_range ip_range $arg_ip 192.0.2.10-192.0.2.20;
-        condition ip_overlap ip_range $arg_ip
+        expr ip_single ip_range $arg_ip 127.0.0.1;
+        expr ip_cidr ip_range $arg_ip 10.0.0.0/8;
+        expr ip_range ip_range $arg_ip 192.0.2.10-192.0.2.20;
+        expr ip_overlap ip_range $arg_ip
             192.0.2.10-192.0.2.30 192.0.2.20-192.0.2.40;
-        condition ip_max ip_range $arg_ip 255.255.255.255;
-        condition ip_ipv6 ip_range $arg_ip 2001:db8::/32;
+        expr ip_max ip_range $arg_ip 255.255.255.255;
+        expr ip_ipv6 ip_range $arg_ip 2001:db8::/32;
 
         location = /single {
             when ip_single {
@@ -98,16 +98,16 @@ http {
 stream {
     %%TEST_GLOBALS_STREAM%%
 
-    log_format condition_ip_test '$remote_addr';
+    log_format expr_ip_test '$remote_addr';
 
     server {
         listen  127.0.0.1:8081;
 
-        condition stream_ip_range ip_range $remote_addr
+        expr stream_ip_range ip_range $remote_addr
             127.0.0.1-127.0.0.2;
 
         when stream_ip_range {
-            access_log %%TESTDIR%%/stream-ip-range.log condition_ip_test;
+            access_log %%TESTDIR%%/stream-ip-range.log expr_ip_test;
         }
 
         return ok;

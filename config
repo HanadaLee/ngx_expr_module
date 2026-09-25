@@ -1,27 +1,27 @@
-ngx_addon_name=ngx_condition_module
+ngx_addon_name=ngx_expr_module
 
 if [ "$ngx_module_link" = DYNAMIC ]; then
     cat << END
 
-$0: error: ngx_condition_module must be built statically with --add-module
-because NGX_CONDITION-enabled built-in directives reference its public API
+$0: error: ngx_expr_module must be built statically with --add-module
+because NGX_EXPR-enabled built-in directives reference its public API
 
 END
     exit 1
 fi
 
-have=NGX_CONDITION . auto/have
+have=NGX_EXPR . auto/have
 
-ngx_condition_nginx_version=`awk '$1 == "#define" && $2 == "nginx_version" {
+ngx_expr_nginx_version=`awk '$1 == "#define" && $2 == "nginx_version" {
                                       print $3
                                   }' src/core/nginx.h`
 
-if [ -n "$ngx_condition_nginx_version" \
-     -a "$ngx_condition_nginx_version" -ge 1031005 ]; then
-    ngx_condition_cjson_libs=
+if [ -n "$ngx_expr_nginx_version" \
+     -a "$ngx_expr_nginx_version" -ge 1031005 ]; then
+    ngx_expr_cjson_libs=
 
 else
-    ngx_condition_cjson_libs=
+    ngx_expr_cjson_libs=
 
     ngx_feature="cJSON library"
     ngx_feature_name="NGX_CJSON"
@@ -36,42 +36,42 @@ else
     . auto/feature
 
     if [ "$ngx_found" = yes ]; then
-        ngx_condition_cjson_libs="$ngx_feature_libs"
+        ngx_expr_cjson_libs="$ngx_feature_libs"
 
     else
         cat << END
 
-$0: warning: cJSON library not found, is_json condition will not be available
+$0: warning: cJSON library not found, is_json expression operator will not be available
 
 END
     fi
 fi
 
-ngx_condition_incs="$ngx_addon_dir/src"
-ngx_condition_deps="$ngx_addon_dir/src/ngx_condition.h"
+ngx_expr_incs="$ngx_addon_dir/src"
+ngx_expr_deps="$ngx_addon_dir/src/ngx_expr.h"
 
 if [ "$HTTP" = YES ]; then
     ngx_module_type=HTTP
-    ngx_module_name=ngx_http_condition_module
-    ngx_module_incs="$ngx_condition_incs"
-    ngx_module_deps="$ngx_condition_deps \
-                     $ngx_addon_dir/src/ngx_http_condition_module.h"
-    ngx_module_srcs="$ngx_addon_dir/src/ngx_condition.c \
-                     $ngx_addon_dir/src/ngx_http_condition_module.c"
-    ngx_module_libs="$ngx_condition_cjson_libs"
+    ngx_module_name=ngx_http_expr_module
+    ngx_module_incs="$ngx_expr_incs"
+    ngx_module_deps="$ngx_expr_deps \
+                     $ngx_addon_dir/src/ngx_http_expr_module.h"
+    ngx_module_srcs="$ngx_addon_dir/src/ngx_expr.c \
+                     $ngx_addon_dir/src/ngx_http_expr_module.c"
+    ngx_module_libs="$ngx_expr_cjson_libs"
 
     . auto/module
 fi
 
 if [ "$STREAM" = YES ]; then
     ngx_module_type=STREAM
-    ngx_module_name=ngx_stream_condition_module
-    ngx_module_incs="$ngx_condition_incs"
-    ngx_module_deps="$ngx_condition_deps \
-                     $ngx_addon_dir/src/ngx_stream_condition_module.h"
-    ngx_module_srcs="$ngx_addon_dir/src/ngx_condition.c \
-                     $ngx_addon_dir/src/ngx_stream_condition_module.c"
-    ngx_module_libs="$ngx_condition_cjson_libs"
+    ngx_module_name=ngx_stream_expr_module
+    ngx_module_incs="$ngx_expr_incs"
+    ngx_module_deps="$ngx_expr_deps \
+                     $ngx_addon_dir/src/ngx_stream_expr_module.h"
+    ngx_module_srcs="$ngx_addon_dir/src/ngx_expr.c \
+                     $ngx_addon_dir/src/ngx_stream_expr_module.c"
+    ngx_module_libs="$ngx_expr_cjson_libs"
 
     . auto/module
 fi

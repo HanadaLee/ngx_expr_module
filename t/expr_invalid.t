@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Tests for ngx_condition_module configuration errors.
+# Tests for ngx_expr_module configuration errors.
 
 ###############################################################################
 
@@ -18,35 +18,35 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
-    ->has(qw/http stream ngx_condition_module/)
+    ->has(qw/http stream ngx_expr_module/)
     ->plan(14);
 
 check_invalid('double func negation', 'http',
-    'condition broken !!= a b;',
-    qr/unsupported condition type "!!="/);
+    'expr broken !!= a b;',
+    qr/unsupported expr type "!!="/);
 
 check_invalid('removed is_not_empty func', 'http',
-    'condition broken is_not_empty value;',
-    qr/unsupported condition type "is_not_empty"/);
+    'expr broken is_not_empty value;',
+    qr/unsupported expr type "is_not_empty"/);
 
 check_invalid('removed str_ne func', 'http',
-    'condition broken str_ne a b;',
-    qr/unsupported condition type "str_ne"/);
+    'expr broken str_ne a b;',
+    qr/unsupported expr type "str_ne"/);
 
 check_invalid('removed num_ne func', 'stream',
-    'condition broken num_ne 1 2;',
-    qr/unsupported condition type "num_ne"/);
+    'expr broken num_ne 1 2;',
+    qr/unsupported expr type "num_ne"/);
 
-check_invalid('undefined condition reference', 'http',
-    "condition known bool true;\ncondition broken and known missing;",
-    qr/condition "missing" is not defined/);
+check_invalid('undefined expr reference', 'http',
+    "expr known bool true;\nexpr broken and known missing;",
+    qr/expr "missing" is not defined/);
 
-check_invalid('condition cycle', 'http',
-    "condition first not second;\ncondition second not first;",
-    qr/cycle detected in condition/);
+check_invalid('expr cycle', 'http',
+    "expr first not second;\nexpr second not first;",
+    qr/cycle detected in expr/);
 
 check_invalid('same-name type conflict', 'stream',
-    "condition same bool true;\ncondition same = a a;",
+    "expr same bool true;\nexpr same = a a;",
     qr/has conflicting types/);
 
 undef $t;
