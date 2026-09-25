@@ -30,6 +30,7 @@ changed between processing phases.
     - [`when`](#when)
     - [Expression operators](#expression-operators)
       - [Logic](#logic)
+      - [Boolean constants](#boolean-constants)
       - [Empty values](#empty-values)
       - [Strings](#strings)
       - [Numbers](#numbers)
@@ -55,8 +56,10 @@ changed between processing phases.
 This module is experimental. Its configuration syntax and public C API should
 be treated as evolving interfaces.
 
-The former `condition` directive is now `expr`; `when` is unchanged. The
-`ngx_condition_module` addon, `ngx_http_condition_module` and
+Note: NGINX plans to introduce its own `condition` directive. This addon uses
+`expr` and the `ngx_expr_module` name to avoid a directive name conflict.
+The former `condition` directive is now `expr`. `when` directive is unchanged.
+The `ngx_condition_module` addon, `ngx_http_condition_module` and
 `ngx_stream_condition_module` are now named `ngx_expr_module`,
 `ngx_http_expr_module` and `ngx_stream_expr_module`. External integrations must
 switch from `NGX_CONDITION` to `NGX_EXPR`, include the new public headers, and
