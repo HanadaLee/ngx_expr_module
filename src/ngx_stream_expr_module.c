@@ -371,6 +371,13 @@ static ngx_stream_expr_func_t  ngx_stream_expr_funcs[] = {
 
 static ngx_command_t  ngx_stream_expr_commands[] = {
 
+    { ngx_string("include"),
+      NGX_STREAM_MAIN_WHEN_CONF|NGX_STREAM_SRV_WHEN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_include,
+      0,
+      0,
+      NULL },
+
     { ngx_string("expr"),
       NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_2MORE,
       ngx_stream_expr,

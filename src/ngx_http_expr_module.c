@@ -372,6 +372,14 @@ static ngx_http_expr_func_t  ngx_http_expr_funcs[] = {
 
 static ngx_command_t  ngx_http_expr_commands[] = {
 
+    { ngx_string("include"),
+      NGX_HTTP_MAIN_WHEN_CONF|NGX_HTTP_SRV_WHEN_CONF|NGX_HTTP_LOC_WHEN_CONF
+                            |NGX_CONF_TAKE1,
+      ngx_conf_include,
+      0,
+      0,
+      NULL },
+
     { ngx_string("expr"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_2MORE,
       ngx_http_expr,

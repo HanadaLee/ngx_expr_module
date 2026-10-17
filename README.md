@@ -236,6 +236,11 @@ when authenticated !blocked from_internal_network {
 `!blocked` negates `blocked`. The `!` prefix and name must be one token.
 `when` blocks cannot be nested.
 
+`include` can be used inside a `when` block, including nested includes and file
+patterns. Included directives use the surrounding `when` condition and must
+support that context. Files are read during configuration loading, even when
+the condition will not match a request or session.
+
 `when` does not automatically make arbitrary NGINX directives conditional.
 Each directive must declare the matching `when` context flag, retain the
 expression ID while parsing, and evaluate it at runtime. Unsupported directives
