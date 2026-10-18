@@ -189,6 +189,8 @@ ngx_expr_parse_terms(ngx_conf_t *cf,
             return NGX_ERROR;
         }
 
+        ngx_memzero(term, sizeof(ngx_expr_term_t));
+
         term->expr_id = entry->id;
         term->negative = negative;
     }
@@ -201,7 +203,7 @@ ngx_expr_when_id_t
 ngx_expr_get_when_id(ngx_conf_t *cf, ngx_expr_registry_t *registry,
     ngx_array_t *terms)
 {
-    ngx_uint_t                   i;
+    ngx_uint_t                   i, j;
     ngx_expr_term_t              *a, *b;
     ngx_expr_when_t              *expr;
 
@@ -215,8 +217,17 @@ ngx_expr_get_when_id(ngx_conf_t *cf, ngx_expr_registry_t *registry,
         a = expr[i].terms.elts;
         b = terms->elts;
 
-        if (ngx_memcmp(a, b, terms->nelts * sizeof(ngx_expr_term_t)) == 0)
-        {
+        /* Compare fields, not padding or unused bits in the bit-field. */
+
+        for (j = 0; j < terms->nelts; j++) {
+            if (a[j].expr_id != b[j].expr_id
+                || a[j].negative != b[j].negative)
+            {
+                break;
+            }
+        }
+
+        if (j == terms->nelts) {
             return expr[i].expr_id;
         }
     }

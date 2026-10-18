@@ -517,9 +517,41 @@ when internal {
 example_enabled off;
 ```
 
-List-like directives may define different semantics, such as applying every
-matching item instead of selecting only the first one. Their integration must
-define which behavior applies.
+### Integration contract: block boundaries and rule order
+
+`when` attaches a condition to each declaration; it does not create a new
+configuration level, a rule-group priority, or an atomic execution block.
+Splitting a block into consecutive blocks with the same ordered expression
+references must preserve its meaning, including duplicate checks and
+inheritance:
+
+```nginx
+when condition {
+    example_rule a;
+    example_rule b;
+}
+
+# Equivalent configuration (use either form, not both):
+when condition { example_rule a; }
+when condition { example_rule b; }
+```
+
+For directives that accumulate separate rules, retain declaration order, skip
+inactive rules, and apply the directive's existing matching and termination
+rules. A matching condition alone must not exclude rules in another matching
+block. Interleaved declarations must not be reordered by grouping identical
+condition IDs. Expanding an include at the same position follows the same rule.
+
+A single declaration that defines a complete value or policy remains one
+candidate, even if it contains several arguments or is stored as an array or
+bitmask. Such values are not automatically combined across matching blocks.
+Existing per-key precedence, `off`, default values, validation, configuration
+inheritance, and module execution phases remain separate concerns.
+
+This is the integration contract for consumers; using a generic first-match
+getter for a list of independently declared rules does not satisfy it. Shared
+conditions are not frozen across phases, and block splitting must not introduce
+block-level evaluation or caching semantics.
 
 ## Integrating another module
 
@@ -873,6 +905,22 @@ inheritance, and expression-aware built-in directives. The JSON test is skipped
 when the build does not provide `is_json`. Set `TEST_NGINX_VERBOSE=1` for
 verbose protocol logging or `TEST_NGINX_LEAVE=1` to retain temporary test
 directories.
+
+The condition-ID unit test also checks structure padding deterministically.
+It links the actual expression implementation and the configured tree's array
+and pool code. On Linux, run it against the same configured source tree:
+
+```sh
+test_dir=$(mktemp -d)
+make -C /path/to/nginx-1.31.3 -f objs/Makefile \
+    -f /path/to/ngx_expr_module/t/unit/Makefile expr-when-id-test \
+    EXPR_MODULE=/path/to/ngx_expr_module \
+    EXPR_TEST_BINARY="$test_dir/when-id"
+```
+
+This builds only a standalone test executable; it does not install or start
+NGINX. The Perl identity tests cover HTTP and Stream parsing, split blocks,
+includes, negation, term order, and duplicate directives.
 
 ## Author
 
