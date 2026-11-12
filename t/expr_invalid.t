@@ -19,7 +19,7 @@ select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
     ->has(qw/http stream ngx_expr_module/)
-    ->plan(14);
+    ->plan(22);
 
 check_invalid('double func negation', 'http',
     'expr broken !!= a b;',
@@ -44,6 +44,47 @@ check_invalid('undefined expr reference', 'http',
 check_invalid('expr cycle', 'http',
     "expr first not second;\nexpr second not first;",
     qr/cycle detected in expr/);
+
+my $graph = 'expr first and second third;
+            expr second and third third;
+            expr third bool true;';
+
+check_invalid('cycle from location override', 'http', $graph . '
+    server {
+        listen 127.0.0.1:8080;
+        location / {
+            expr second and first third;
+        }
+    }', qr/cycle detected in expr/);
+
+check_invalid('cycle after another HTTP scope', 'http', $graph . '
+    server {
+        listen 127.0.0.1:8080;
+        expr third bool false;
+    }
+    server {
+        listen 127.0.0.1:8081;
+        expr second and first third;
+    }', qr/cycle detected in expr/);
+
+check_invalid('cycle from Stream override', 'stream', $graph . '
+    server {
+        listen 127.0.0.1:8080;
+        expr second and first third;
+        return ok;
+    }', qr/cycle detected in expr/);
+
+check_invalid('cycle after another Stream scope', 'stream', $graph . '
+    server {
+        listen 127.0.0.1:8080;
+        expr third bool false;
+        return ok;
+    }
+    server {
+        listen 127.0.0.1:8081;
+        expr second and first third;
+        return ok;
+    }', qr/cycle detected in expr/);
 
 check_invalid('same-name type conflict', 'stream',
     "expr same bool true;\nexpr same = a a;",

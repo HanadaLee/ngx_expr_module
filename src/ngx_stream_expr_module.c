@@ -76,7 +76,8 @@ typedef struct {
 
 
 typedef struct {
-    ngx_expr_registry_t  registry;
+    ngx_expr_registry_t   registry;
+    u_char               *cycle_state;
 } ngx_stream_expr_main_conf_t;
 
 
@@ -1059,17 +1060,24 @@ ngx_stream_expr_detect_cycles(ngx_conf_t *cf,
     ngx_stream_expr_main_conf_t *cmcf,
     ngx_stream_expr_srv_conf_t *conf)
 {
-    u_char       *state;
-    ngx_uint_t   i;
+    u_char     *state;
+    ngx_uint_t  i;
 
     if (conf->effective_nelts == 0) {
         return NGX_OK;
     }
 
-    state = ngx_pcalloc(cf->pool, conf->effective_nelts);
+    state = cmcf->cycle_state;
     if (state == NULL) {
-        return NGX_ERROR;
+        state = ngx_palloc(cf->temp_pool, conf->effective_nelts);
+        if (state == NULL) {
+            return NGX_ERROR;
+        }
+
+        cmcf->cycle_state = state;
     }
+
+    ngx_memzero(state, conf->effective_nelts);
 
     for (i = 0; i < conf->effective_nelts; i++) {
         if (ngx_stream_expr_visit(cf, cmcf, conf, i, state) != NGX_OK) {
@@ -1086,12 +1094,19 @@ ngx_stream_expr_finalize_scope(ngx_conf_t *cf,
     ngx_stream_expr_srv_conf_t *conf,
     ngx_stream_expr_srv_conf_t *parent)
 {
-    size_t                                size;
-    ngx_uint_t                            i;
-    ngx_stream_expr_main_conf_t           *cmcf;
-    ngx_stream_expr_scope_entry_t         *entry;
+    size_t                          size;
+    ngx_uint_t                      i;
+    ngx_stream_expr_main_conf_t    *cmcf;
+    ngx_stream_expr_scope_entry_t  *entry;
 
     if (conf->finalized) {
+        return NGX_OK;
+    }
+
+    if (parent != NULL && conf->entries.nelts == 0) {
+        conf->effective = parent->effective;
+        conf->effective_nelts = parent->effective_nelts;
+        conf->finalized = 1;
         return NGX_OK;
     }
 
@@ -1154,8 +1169,9 @@ ngx_stream_expr_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 static ngx_int_t
 ngx_stream_expr_postconfiguration(ngx_conf_t *cf)
 {
-    ngx_stream_expr_main_conf_t   *cmcf;
-    ngx_stream_expr_srv_conf_t    *cscf;
+    ngx_int_t                     rc;
+    ngx_stream_expr_main_conf_t  *cmcf;
+    ngx_stream_expr_srv_conf_t   *cscf;
 
     cmcf = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_expr_module);
     cscf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_expr_module);
@@ -1168,7 +1184,11 @@ ngx_stream_expr_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    return ngx_stream_expr_finalize_scope(cf, cscf, NULL);
+    rc = ngx_stream_expr_finalize_scope(cf, cscf, NULL);
+
+    cmcf->cycle_state = NULL;
+
+    return rc;
 }
 
 

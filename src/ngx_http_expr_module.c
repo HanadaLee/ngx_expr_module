@@ -77,7 +77,8 @@ typedef struct {
 
 
 typedef struct {
-    ngx_expr_registry_t  registry;
+    ngx_expr_registry_t   registry;
+    u_char               *cycle_state;
 } ngx_http_expr_main_conf_t;
 
 
@@ -1072,17 +1073,24 @@ ngx_http_expr_detect_cycles(ngx_conf_t *cf,
     ngx_http_expr_main_conf_t *cmcf,
     ngx_http_expr_loc_conf_t *conf)
 {
-    u_char       *state;
-    ngx_uint_t   i;
+    u_char     *state;
+    ngx_uint_t  i;
 
     if (conf->effective_nelts == 0) {
         return NGX_OK;
     }
 
-    state = ngx_pcalloc(cf->pool, conf->effective_nelts);
+    state = cmcf->cycle_state;
     if (state == NULL) {
-        return NGX_ERROR;
+        state = ngx_palloc(cf->temp_pool, conf->effective_nelts);
+        if (state == NULL) {
+            return NGX_ERROR;
+        }
+
+        cmcf->cycle_state = state;
     }
+
+    ngx_memzero(state, conf->effective_nelts);
 
     for (i = 0; i < conf->effective_nelts; i++) {
         if (ngx_http_expr_visit(cf, cmcf, conf, i, state) != NGX_OK) {
@@ -1099,12 +1107,19 @@ ngx_http_expr_finalize_scope(ngx_conf_t *cf,
     ngx_http_expr_loc_conf_t *conf,
     ngx_http_expr_loc_conf_t *parent)
 {
-    size_t                              size;
-    ngx_uint_t                          i;
-    ngx_http_expr_main_conf_t           *cmcf;
-    ngx_http_expr_scope_entry_t         *entry;
+    size_t                        size;
+    ngx_uint_t                    i;
+    ngx_http_expr_main_conf_t    *cmcf;
+    ngx_http_expr_scope_entry_t  *entry;
 
     if (conf->finalized) {
+        return NGX_OK;
+    }
+
+    if (parent != NULL && conf->entries.nelts == 0) {
+        conf->effective = parent->effective;
+        conf->effective_nelts = parent->effective_nelts;
+        conf->finalized = 1;
         return NGX_OK;
     }
 
@@ -1167,8 +1182,9 @@ ngx_http_expr_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 static ngx_int_t
 ngx_http_expr_postconfiguration(ngx_conf_t *cf)
 {
-    ngx_http_expr_main_conf_t   *cmcf;
-    ngx_http_expr_loc_conf_t    *clcf;
+    ngx_int_t                   rc;
+    ngx_http_expr_main_conf_t  *cmcf;
+    ngx_http_expr_loc_conf_t   *clcf;
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_expr_module);
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_expr_module);
@@ -1181,7 +1197,11 @@ ngx_http_expr_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    return ngx_http_expr_finalize_scope(cf, clcf, NULL);
+    rc = ngx_http_expr_finalize_scope(cf, clcf, NULL);
+
+    cmcf->cycle_state = NULL;
+
+    return rc;
 }
 
 
