@@ -29,6 +29,7 @@
 #define NGX_EXPR_FUNC_LOGIC_LAST    NGX_EXPR_FUNC_OR
 
 #define NGX_EXPR_IP_KEY_LEN         16
+#define NGX_EXPR_INDEX_PAGE_SIZE    64
 
 
 typedef ngx_uint_t  ngx_expr_id_t;
@@ -93,8 +94,22 @@ typedef struct {
 
 
 typedef struct {
-    ngx_array_t              names;       /* ngx_expr_name_t */
-    ngx_array_t              expressions; /* ngx_expr_when_t */
+    void     ***pages;
+    ngx_uint_t  nelts;
+} ngx_expr_index_t;
+
+
+typedef struct {
+    ngx_rbtree_t       tree;
+    ngx_rbtree_node_t  sentinel;
+} ngx_expr_tree_t;
+
+
+typedef struct {
+    ngx_array_t       names;       /* ngx_expr_name_t */
+    ngx_array_t       expressions; /* ngx_expr_when_t */
+    ngx_expr_tree_t  *name_index;
+    ngx_expr_tree_t  *when_index;
 } ngx_expr_registry_t;
 
 
@@ -204,6 +219,14 @@ typedef struct {
 
 typedef ngx_int_t (*ngx_expr_eval_pt)(void *data, ngx_expr_when_id_t expr_id);
 
+
+ngx_int_t ngx_expr_index_init(ngx_conf_t *cf, ngx_expr_index_t *index,
+    ngx_expr_index_t *parent, ngx_uint_t nelts);
+ngx_int_t ngx_expr_index_set(ngx_conf_t *cf, ngx_expr_index_t *index,
+    ngx_expr_index_t *parent, ngx_uint_t id, void *value);
+ngx_uint_t ngx_expr_id_find(ngx_expr_tree_t *tree, ngx_uint_t id);
+ngx_int_t ngx_expr_id_add(ngx_conf_t *cf, ngx_expr_tree_t **tree,
+    ngx_uint_t id, ngx_uint_t offset);
 
 ngx_int_t ngx_expr_registry_init(ngx_pool_t *pool,
     ngx_expr_registry_t *registry);
@@ -334,6 +357,21 @@ char *ngx_conf_set_conditional_enum_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 char *ngx_conf_set_conditional_bitmask_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+
+
+static ngx_inline void *
+ngx_expr_index_get(ngx_expr_index_t *index, ngx_uint_t id)
+{
+    void  **page;
+
+    if (id >= index->nelts) {
+        return NULL;
+    }
+
+    page = index->pages[id / NGX_EXPR_INDEX_PAGE_SIZE];
+
+    return page ? page[id % NGX_EXPR_INDEX_PAGE_SIZE] : NULL;
+}
 
 
 #endif /* _NGX_EXPR_H_INCLUDED_ */

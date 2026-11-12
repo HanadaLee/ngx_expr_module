@@ -39,8 +39,8 @@ struct ngx_stream_expr_def_s {
         ngx_stream_complex_value_t       values[3];
 
         struct {
-            ngx_stream_complex_value_t   value;
-            ngx_array_t                  list_values; /* complex values */
+            ngx_stream_complex_value_t  value;
+            ngx_array_t                 list_values; /* complex values */
         } list;
 
         struct {
@@ -68,10 +68,10 @@ typedef struct {
 
 
 typedef struct {
-    ngx_array_t                          entries;     /* scope entries */
-    ngx_stream_expr_scope_entry_t        **effective;
-    ngx_uint_t                           effective_nelts;
-    unsigned                             finalized:1;
+    ngx_array_t       entries;     /* scope entries */
+    ngx_expr_index_t  effective;
+    ngx_expr_tree_t  *index;
+    unsigned          finalized:1;
 } ngx_stream_expr_srv_conf_t;
 
 
@@ -522,12 +522,6 @@ ngx_stream_expr_create_srv_conf(ngx_conf_t *cf)
         return NULL;
     }
 
-    if (ngx_array_init(&conf->entries, cf->pool, 2,
-                       sizeof(ngx_stream_expr_scope_entry_t)) != NGX_OK)
-    {
-        return NULL;
-    }
-
     return conf;
 }
 
@@ -535,18 +529,17 @@ ngx_stream_expr_create_srv_conf(ngx_conf_t *cf)
 static ngx_stream_expr_scope_entry_t *
 ngx_stream_expr_find_entry(ngx_stream_expr_srv_conf_t *conf, ngx_expr_id_t id)
 {
-    ngx_uint_t                            i;
-    ngx_stream_expr_scope_entry_t         *entry;
+    ngx_uint_t                      offset;
+    ngx_stream_expr_scope_entry_t  *entry;
+
+    offset = ngx_expr_id_find(conf->index, id);
+    if (offset == NGX_CONF_UNSET_UINT) {
+        return NULL;
+    }
 
     entry = conf->entries.elts;
 
-    for (i = 0; i < conf->entries.nelts; i++) {
-        if (entry[i].id == id) {
-            return &entry[i];
-        }
-    }
-
-    return NULL;
+    return &entry[offset];
 }
 
 
@@ -773,7 +766,7 @@ ngx_stream_expr_parse_definition(ngx_conf_t *cf,
         || func->type == NGX_EXPR_FUNC_NUM_IN)
     {
         if (ngx_stream_expr_compile_value(cf, &value[first],
-                                               &definition->u.list.value)
+                                          &definition->u.list.value)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -793,7 +786,7 @@ ngx_stream_expr_parse_definition(ngx_conf_t *cf,
             }
 
             if (ngx_stream_expr_compile_value(cf, &value[first + i],
-                                                   list_value) != NGX_OK)
+                                              list_value) != NGX_OK)
             {
                 return NGX_ERROR;
             }
@@ -805,7 +798,7 @@ ngx_stream_expr_parse_definition(ngx_conf_t *cf,
     if (func->type == NGX_EXPR_FUNC_STR_REGEX_MATCH) {
 #if (NGX_PCRE)
         if (ngx_stream_expr_compile_value(cf, &value[first],
-                                             &definition->u.regex_match.value)
+                                          &definition->u.regex_match.value)
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -832,7 +825,7 @@ ngx_stream_expr_parse_definition(ngx_conf_t *cf,
 
     for (i = 0; i < argc; i++) {
         if (ngx_stream_expr_compile_value(cf, &value[first + i],
-                                             &definition->u.values[i])
+                                          &definition->u.values[i])
             != NGX_OK)
         {
             return NGX_ERROR;
@@ -910,13 +903,26 @@ ngx_stream_expr(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     definition->negative = negative;
 
     if (ngx_stream_expr_parse_definition(cf, cmcf, func, definition,
-                                              first)
+                                         first)
         != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
 
     if (entry == NULL) {
+        if (cscf->entries.elts == NULL
+            && ngx_array_init(&cscf->entries, cf->pool, 1,
+                              sizeof(ngx_stream_expr_scope_entry_t)) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+
+        if (ngx_expr_id_add(cf, &cscf->index, expr_id, cscf->entries.nelts)
+            != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+
         entry = ngx_array_push(&cscf->entries);
         if (entry == NULL) {
             return NGX_CONF_ERROR;
@@ -963,7 +969,7 @@ ngx_stream_expr_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    if (ngx_array_init(&terms, cf->pool, cf->args->nelts - 1,
+    if (ngx_array_init(&terms, cf->temp_pool, cf->args->nelts - 1,
                        sizeof(ngx_expr_term_t)) != NGX_OK)
     {
         return NGX_CONF_ERROR;
@@ -1006,13 +1012,14 @@ ngx_stream_expr_visit(ngx_conf_t *cf,
     ngx_stream_expr_srv_conf_t *conf, ngx_expr_id_t id,
     u_char *state)
 {
-    ngx_uint_t                            i, j;
-    ngx_expr_term_t                       *term;
-    ngx_expr_name_t                       *name;
-    ngx_stream_expr_def_t                 **definition;
-    ngx_stream_expr_scope_entry_t         *entry;
+    ngx_uint_t                      i, j;
+    ngx_expr_term_t                *term;
+    ngx_expr_name_t                *name;
+    ngx_stream_expr_def_t         **definition;
+    ngx_stream_expr_scope_entry_t  *entry;
 
-    if (id >= conf->effective_nelts || conf->effective[id] == NULL) {
+    entry = ngx_expr_index_get(&conf->effective, id);
+    if (entry == NULL) {
         return NGX_OK;
     }
 
@@ -1029,7 +1036,6 @@ ngx_stream_expr_visit(ngx_conf_t *cf,
     }
 
     state[id] = 1;
-    entry = conf->effective[id];
     definition = entry->definitions.elts;
 
     for (i = 0; i < entry->definitions.nelts; i++) {
@@ -1042,7 +1048,7 @@ ngx_stream_expr_visit(ngx_conf_t *cf,
         term = definition[i]->u.terms.elts;
         for (j = 0; j < definition[i]->u.terms.nelts; j++) {
             if (ngx_stream_expr_visit(cf, cmcf, conf,
-                                           term[j].expr_id, state)
+                                      term[j].expr_id, state)
                 != NGX_OK)
             {
                 return NGX_ERROR;
@@ -1063,13 +1069,13 @@ ngx_stream_expr_detect_cycles(ngx_conf_t *cf,
     u_char     *state;
     ngx_uint_t  i;
 
-    if (conf->effective_nelts == 0) {
+    if (conf->effective.nelts == 0) {
         return NGX_OK;
     }
 
     state = cmcf->cycle_state;
     if (state == NULL) {
-        state = ngx_palloc(cf->temp_pool, conf->effective_nelts);
+        state = ngx_palloc(cf->temp_pool, conf->effective.nelts);
         if (state == NULL) {
             return NGX_ERROR;
         }
@@ -1077,9 +1083,9 @@ ngx_stream_expr_detect_cycles(ngx_conf_t *cf,
         cmcf->cycle_state = state;
     }
 
-    ngx_memzero(state, conf->effective_nelts);
+    ngx_memzero(state, conf->effective.nelts);
 
-    for (i = 0; i < conf->effective_nelts; i++) {
+    for (i = 0; i < conf->effective.nelts; i++) {
         if (ngx_stream_expr_visit(cf, cmcf, conf, i, state) != NGX_OK) {
             return NGX_ERROR;
         }
@@ -1091,11 +1097,10 @@ ngx_stream_expr_detect_cycles(ngx_conf_t *cf,
 
 static ngx_int_t
 ngx_stream_expr_finalize_scope(ngx_conf_t *cf,
-    ngx_stream_expr_srv_conf_t *conf,
-    ngx_stream_expr_srv_conf_t *parent)
+    ngx_stream_expr_srv_conf_t *conf, ngx_stream_expr_srv_conf_t *parent)
 {
-    size_t                          size;
     ngx_uint_t                      i;
+    ngx_expr_index_t               *inherited;
     ngx_stream_expr_main_conf_t    *cmcf;
     ngx_stream_expr_scope_entry_t  *entry;
 
@@ -1105,7 +1110,6 @@ ngx_stream_expr_finalize_scope(ngx_conf_t *cf,
 
     if (parent != NULL && conf->entries.nelts == 0) {
         conf->effective = parent->effective;
-        conf->effective_nelts = parent->effective_nelts;
         conf->finalized = 1;
         return NGX_OK;
     }
@@ -1115,25 +1119,21 @@ ngx_stream_expr_finalize_scope(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    conf->effective_nelts = cmcf->registry.names.nelts;
+    inherited = parent ? &parent->effective : NULL;
 
-    if (conf->effective_nelts != 0) {
-        size = conf->effective_nelts
-               * sizeof(ngx_stream_expr_scope_entry_t *);
-        conf->effective = ngx_pcalloc(cf->pool, size);
-        if (conf->effective == NULL) {
+    if (ngx_expr_index_init(cf, &conf->effective, inherited,
+                            cmcf->registry.names.nelts) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    entry = conf->entries.elts;
+
+    for (i = 0; i < conf->entries.nelts; i++) {
+        if (ngx_expr_index_set(cf, &conf->effective, inherited,
+                               entry[i].id, &entry[i]) != NGX_OK)
+        {
             return NGX_ERROR;
-        }
-
-        if (parent != NULL) {
-            ngx_memcpy(conf->effective, parent->effective,
-                       conf->effective_nelts
-                       * sizeof(ngx_stream_expr_scope_entry_t *));
-        }
-
-        entry = conf->entries.elts;
-        for (i = 0; i < conf->entries.nelts; i++) {
-            conf->effective[entry[i].id] = &entry[i];
         }
     }
 
@@ -1141,7 +1141,9 @@ ngx_stream_expr_finalize_scope(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
+    conf->index = NULL;
     conf->finalized = 1;
+
     return NGX_OK;
 }
 
@@ -1187,6 +1189,8 @@ ngx_stream_expr_postconfiguration(ngx_conf_t *cf)
     rc = ngx_stream_expr_finalize_scope(cf, cscf, NULL);
 
     cmcf->cycle_state = NULL;
+    cmcf->registry.name_index = NULL;
+    cmcf->registry.when_index = NULL;
 
     return rc;
 }
@@ -1583,12 +1587,12 @@ static ngx_int_t
 ngx_stream_expr_eval_id(ngx_stream_session_t *s,
     ngx_expr_id_t id, ngx_uint_t depth)
 {
-    ngx_int_t                             result;
-    ngx_uint_t                            i;
-    ngx_stream_expr_def_t                 **definition;
-    ngx_stream_expr_scope_entry_t         *entry;
-    ngx_stream_expr_main_conf_t           *cmcf;
-    ngx_stream_expr_srv_conf_t            *cscf;
+    ngx_int_t                       result;
+    ngx_uint_t                      i;
+    ngx_stream_expr_def_t         **definition;
+    ngx_stream_expr_scope_entry_t  *entry;
+    ngx_stream_expr_main_conf_t    *cmcf;
+    ngx_stream_expr_srv_conf_t     *cscf;
 
     cmcf = ngx_stream_get_module_main_conf(s, ngx_stream_expr_module);
     cscf = ngx_stream_get_module_srv_conf(s, ngx_stream_expr_module);
@@ -1597,7 +1601,8 @@ ngx_stream_expr_eval_id(ngx_stream_session_t *s,
         return 0;
     }
 
-    if (id >= cscf->effective_nelts || cscf->effective[id] == NULL) {
+    entry = ngx_expr_index_get(&cscf->effective, id);
+    if (entry == NULL) {
         return 0;
     }
 
@@ -1607,7 +1612,6 @@ ngx_stream_expr_eval_id(ngx_stream_session_t *s,
         return 0;
     }
 
-    entry = cscf->effective[id];
     definition = entry->definitions.elts;
 
     for (i = 0; i < entry->definitions.nelts; i++) {
@@ -1643,7 +1647,8 @@ ngx_stream_expr_get_result(ngx_stream_session_t *s, ngx_expr_when_id_t expr_id)
     ngx_stream_expr_srv_conf_t          *cscf;
     ngx_int_t                           result;
 #if (NGX_DEBUG)
-    ngx_uint_t                          type;
+    ngx_uint_t                      type;
+    ngx_stream_expr_scope_entry_t  *entry;
 #endif
 
     if (expr_id == NGX_EXPR_NO_WHEN_ID) {
@@ -1674,10 +1679,9 @@ ngx_stream_expr_get_result(ngx_stream_session_t *s, ngx_expr_when_id_t expr_id)
 
 #if (NGX_DEBUG)
         type = NGX_EXPR_FUNC_INVALID;
-        if (term[i].expr_id < cscf->effective_nelts
-            && cscf->effective[term[i].expr_id] != NULL)
-        {
-            type = cscf->effective[term[i].expr_id]->type;
+        entry = ngx_expr_index_get(&cscf->effective, term[i].expr_id);
+        if (entry != NULL) {
+            type = entry->type;
         }
 
         ngx_log_debug7(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,

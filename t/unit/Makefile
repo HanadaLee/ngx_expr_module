@@ -7,5 +7,6 @@ expr-when-id-test:
 		-ffunction-sections -fdata-sections \
 		$(EXPR_MODULE)/t/unit/when_id.c $(EXPR_MODULE)/src/ngx_expr.c \
 		src/core/ngx_array.c src/core/ngx_palloc.c src/os/unix/ngx_alloc.c \
+		src/core/ngx_rbtree.c src/core/ngx_string.c src/core/ngx_hash.c \
 		-Wl,--gc-sections -o $(EXPR_TEST_BINARY)
 	$(EXPR_TEST_BINARY)

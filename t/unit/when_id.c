@@ -168,6 +168,64 @@ test_parser(ngx_conf_t *cf)
 }
 
 
+static void
+ngx_expr_test_collisions(ngx_conf_t *cf)
+{
+    u_char               buffer[32];
+    ngx_uint_t           i;
+    ngx_str_t            name;
+    ngx_array_t          terms;
+    ngx_expr_term_t     *term;
+    ngx_expr_name_t     *entry;
+    ngx_expr_registry_t  registry;
+
+    check(ngx_expr_registry_init(cf->pool, &registry) == NGX_OK);
+
+    ngx_str_set(&name, "Aa");
+    entry = ngx_expr_get_name(cf, &registry, &name);
+    check(entry != NULL && entry->id == 0);
+    ngx_str_set(&name, "BB");
+    entry = ngx_expr_get_name(cf, &registry, &name);
+    check(entry != NULL && entry->id == 1);
+    ngx_str_set(&name, "aa");
+    entry = ngx_expr_get_name(cf, &registry, &name);
+    check(entry != NULL && entry->id == 2);
+
+    for (i = 0; i < 10000; i++) {
+        name.data = buffer;
+        name.len = snprintf((char *) buffer, sizeof(buffer), "entry_%lu",
+                            (unsigned long) i);
+        entry = ngx_expr_get_name(cf, &registry, &name);
+        check(entry != NULL && entry->id == i + 3);
+    }
+
+    ngx_str_set(&name, "Aa");
+    entry = ngx_expr_get_name(cf, &registry, &name);
+    check(entry != NULL && entry->id == 0);
+    ngx_str_set(&name, "BB");
+    entry = ngx_expr_get_name(cf, &registry, &name);
+    check(entry != NULL && entry->id == 1);
+
+    check(ngx_array_init(&terms, cf->pool, 2,
+                         sizeof(ngx_expr_term_t)) == NGX_OK);
+    terms.nelts = 2;
+    term = terms.elts;
+    ngx_memzero(term, 2 * sizeof(ngx_expr_term_t));
+
+    /* These ordered pairs have the same hash: 1 * 31^3 == 961 * 31. */
+
+    term[0].expr_id = 1;
+    term[1].expr_id = 0;
+    check(ngx_expr_get_when_id(cf, &registry, &terms) == 0);
+    term[0].expr_id = 0;
+    term[1].expr_id = 961;
+    check(ngx_expr_get_when_id(cf, &registry, &terms) == 1);
+    term[0].expr_id = 1;
+    term[1].expr_id = 0;
+    check(ngx_expr_get_when_id(cf, &registry, &terms) == 0);
+}
+
+
 int
 main(void)
 {
@@ -181,12 +239,17 @@ main(void)
     ngx_memzero(&cf, sizeof(ngx_conf_t));
     cf.pool = ngx_create_pool(16384, &log);
     check(cf.pool != NULL);
+    cf.temp_pool = ngx_create_pool(16384, &log);
+    check(cf.temp_pool != NULL);
 
     test_fields(&cf);
     test_parser(&cf);
+    ngx_expr_test_collisions(&cf);
 
+    ngx_destroy_pool(cf.temp_pool);
     ngx_destroy_pool(cf.pool);
-    puts("when ID: padding, fields, order, length, growth and parsing passed");
+    puts("when ID: padding, fields, order, length, growth, parsing "
+         "and collisions passed");
 
     return EXIT_SUCCESS;
 }

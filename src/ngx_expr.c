@@ -50,6 +50,32 @@ struct ngx_expr_ip_ranges_s {
 };
 
 
+typedef struct {
+    ngx_str_node_t  node;
+    ngx_expr_id_t   id;
+} ngx_expr_name_node_t;
+
+
+typedef struct {
+    ngx_rbtree_node_t   node;
+    ngx_expr_term_t    *terms;
+    ngx_uint_t          nelts;
+    ngx_expr_when_id_t  id;
+} ngx_expr_when_node_t;
+
+
+typedef struct {
+    ngx_rbtree_node_t  node;
+    ngx_uint_t         offset;
+} ngx_expr_id_node_t;
+
+
+static ngx_expr_tree_t *ngx_expr_tree_create(ngx_conf_t *cf,
+    ngx_rbtree_insert_pt insert);
+static ngx_int_t ngx_expr_when_compare(ngx_expr_term_t *a, ngx_uint_t na,
+    ngx_expr_term_t *b, ngx_uint_t nb);
+static void ngx_expr_when_insert(ngx_rbtree_node_t *temp,
+    ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 static ngx_int_t ngx_expr_copy_str(ngx_pool_t *pool, ngx_str_t *dst,
     ngx_str_t *src);
 static void *ngx_expr_prepare_slot(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -78,8 +104,145 @@ static ngx_expr_when_id_t  ngx_expr_current_when_id = NGX_EXPR_NO_WHEN_ID;
 
 
 ngx_int_t
+ngx_expr_index_init(ngx_conf_t *cf, ngx_expr_index_t *index,
+    ngx_expr_index_t *parent, ngx_uint_t nelts)
+{
+    ngx_uint_t  n;
+
+    index->nelts = nelts;
+
+    if (nelts == 0) {
+        index->pages = NULL;
+        return NGX_OK;
+    }
+
+    n = (nelts + NGX_EXPR_INDEX_PAGE_SIZE - 1) / NGX_EXPR_INDEX_PAGE_SIZE;
+    index->pages = ngx_pcalloc(cf->pool, n * sizeof(void **));
+    if (index->pages == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (parent != NULL && parent->nelts != 0) {
+        n = (parent->nelts + NGX_EXPR_INDEX_PAGE_SIZE - 1)
+            / NGX_EXPR_INDEX_PAGE_SIZE;
+        ngx_memcpy(index->pages, parent->pages, n * sizeof(void **));
+    }
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+ngx_expr_index_set(ngx_conf_t *cf, ngx_expr_index_t *index,
+    ngx_expr_index_t *parent, ngx_uint_t id, void *value)
+{
+    void      **inherited;
+    ngx_uint_t  page;
+
+    page = id / NGX_EXPR_INDEX_PAGE_SIZE;
+    inherited = NULL;
+
+    if (parent != NULL
+        && page < (parent->nelts + NGX_EXPR_INDEX_PAGE_SIZE - 1)
+                  / NGX_EXPR_INDEX_PAGE_SIZE)
+    {
+        inherited = parent->pages[page];
+    }
+
+    if (index->pages[page] == inherited) {
+        index->pages[page] = ngx_pcalloc(cf->pool,
+                                         NGX_EXPR_INDEX_PAGE_SIZE
+                                         * sizeof(void *));
+        if (index->pages[page] == NULL) {
+            return NGX_ERROR;
+        }
+
+        if (inherited != NULL) {
+            ngx_memcpy(index->pages[page], inherited,
+                       NGX_EXPR_INDEX_PAGE_SIZE * sizeof(void *));
+        }
+    }
+
+    index->pages[page][id % NGX_EXPR_INDEX_PAGE_SIZE] = value;
+
+    return NGX_OK;
+}
+
+
+static ngx_expr_tree_t *
+ngx_expr_tree_create(ngx_conf_t *cf, ngx_rbtree_insert_pt insert)
+{
+    ngx_expr_tree_t  *tree;
+
+    tree = ngx_palloc(cf->temp_pool, sizeof(ngx_expr_tree_t));
+    if (tree == NULL) {
+        return NULL;
+    }
+
+    ngx_rbtree_init(&tree->tree, &tree->sentinel, insert);
+
+    return tree;
+}
+
+
+ngx_uint_t
+ngx_expr_id_find(ngx_expr_tree_t *tree, ngx_uint_t id)
+{
+    ngx_rbtree_node_t   *node, *sentinel;
+    ngx_expr_id_node_t  *entry;
+
+    if (tree == NULL) {
+        return NGX_CONF_UNSET_UINT;
+    }
+
+    node = tree->tree.root;
+    sentinel = tree->tree.sentinel;
+
+    while (node != sentinel) {
+        if (id == node->key) {
+            entry = (ngx_expr_id_node_t *) node;
+            return entry->offset;
+        }
+
+        node = (id < node->key) ? node->left : node->right;
+    }
+
+    return NGX_CONF_UNSET_UINT;
+}
+
+
+ngx_int_t
+ngx_expr_id_add(ngx_conf_t *cf, ngx_expr_tree_t **tree, ngx_uint_t id,
+    ngx_uint_t offset)
+{
+    ngx_expr_id_node_t  *entry;
+
+    if (*tree == NULL) {
+        *tree = ngx_expr_tree_create(cf, ngx_rbtree_insert_value);
+        if (*tree == NULL) {
+            return NGX_ERROR;
+        }
+    }
+
+    entry = ngx_palloc(cf->temp_pool, sizeof(ngx_expr_id_node_t));
+    if (entry == NULL) {
+        return NGX_ERROR;
+    }
+
+    entry->node.key = id;
+    entry->offset = offset;
+    ngx_rbtree_insert(&(*tree)->tree, &entry->node);
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
 ngx_expr_registry_init(ngx_pool_t *pool, ngx_expr_registry_t *registry)
 {
+    registry->name_index = NULL;
+    registry->when_index = NULL;
+
     if (ngx_array_init(&registry->names, pool, 4,
                        sizeof(ngx_expr_name_t)) != NGX_OK)
     {
@@ -113,11 +276,12 @@ ngx_expr_copy_str(ngx_pool_t *pool, ngx_str_t *dst, ngx_str_t *src)
 
 
 ngx_expr_name_t *
-ngx_expr_get_name(ngx_conf_t *cf,
-    ngx_expr_registry_t *registry, ngx_str_t *name)
+ngx_expr_get_name(ngx_conf_t *cf, ngx_expr_registry_t *registry,
+    ngx_str_t *name)
 {
-    ngx_uint_t              i;
-    ngx_expr_name_t         *entry;
+    uint32_t               hash;
+    ngx_expr_name_t       *entry;
+    ngx_expr_name_node_t  *node;
 
     if (name->len == 0 || name->len > NGX_EXPR_NAME_MAX_LEN
         || name->data[0] == '!')
@@ -127,17 +291,28 @@ ngx_expr_get_name(ngx_conf_t *cf,
         return NULL;
     }
 
-    entry = registry->names.elts;
-
-    for (i = 0; i < registry->names.nelts; i++) {
-        if (entry[i].name.len == name->len
-            && ngx_strncmp(entry[i].name.data, name->data, name->len) == 0)
-        {
-            return &entry[i];
+    if (registry->name_index == NULL) {
+        registry->name_index =
+                        ngx_expr_tree_create(cf, ngx_str_rbtree_insert_value);
+        if (registry->name_index == NULL) {
+            return NULL;
         }
     }
 
+    hash = ngx_hash_key(name->data, name->len);
+    node = (ngx_expr_name_node_t *)
+              ngx_str_rbtree_lookup(&registry->name_index->tree, name, hash);
+    if (node != NULL) {
+        entry = registry->names.elts;
+        return &entry[node->id];
+    }
+
     if (registry->names.nelts == NGX_EXPR_NO_ID) {
+        return NULL;
+    }
+
+    node = ngx_palloc(cf->temp_pool, sizeof(ngx_expr_name_node_t));
+    if (node == NULL) {
         return NULL;
     }
 
@@ -154,6 +329,10 @@ ngx_expr_get_name(ngx_conf_t *cf,
     }
 
     entry->id = registry->names.nelts - 1;
+    node->node.node.key = hash;
+    node->node.str = entry->name;
+    node->id = entry->id;
+    ngx_rbtree_insert(&registry->name_index->tree, &node->node.node);
 
     return entry;
 }
@@ -199,40 +378,114 @@ ngx_expr_parse_terms(ngx_conf_t *cf,
 }
 
 
+static ngx_int_t
+ngx_expr_when_compare(ngx_expr_term_t *a, ngx_uint_t na,
+    ngx_expr_term_t *b, ngx_uint_t nb)
+{
+    ngx_uint_t  i;
+
+    /* Compare fields, not padding or unused bits in the bit-field. */
+
+    for (i = 0; i < ngx_min(na, nb); i++) {
+        if (a[i].expr_id != b[i].expr_id) {
+            return (a[i].expr_id < b[i].expr_id) ? -1 : 1;
+        }
+
+        if (a[i].negative != b[i].negative) {
+            return a[i].negative ? 1 : -1;
+        }
+    }
+
+    return (na == nb) ? 0 : (na < nb ? -1 : 1);
+}
+
+
+static void
+ngx_expr_when_insert(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node,
+    ngx_rbtree_node_t *sentinel)
+{
+    ngx_int_t              rc;
+    ngx_rbtree_node_t    **p;
+    ngx_expr_when_node_t  *a, *b;
+
+    a = (ngx_expr_when_node_t *) node;
+
+    for ( ;; ) {
+        if (node->key != temp->key) {
+            p = (node->key < temp->key) ? &temp->left : &temp->right;
+
+        } else {
+            b = (ngx_expr_when_node_t *) temp;
+            rc = ngx_expr_when_compare(a->terms, a->nelts, b->terms, b->nelts);
+            p = (rc < 0) ? &temp->left : &temp->right;
+        }
+
+        if (*p == sentinel) {
+            break;
+        }
+
+        temp = *p;
+    }
+
+    *p = node;
+    node->parent = temp;
+    node->left = sentinel;
+    node->right = sentinel;
+    ngx_rbt_red(node);
+}
+
+
 ngx_expr_when_id_t
 ngx_expr_get_when_id(ngx_conf_t *cf, ngx_expr_registry_t *registry,
     ngx_array_t *terms)
 {
-    ngx_uint_t                   i, j;
-    ngx_expr_term_t              *a, *b;
-    ngx_expr_when_t              *expr;
+    ngx_int_t              rc;
+    ngx_uint_t             i, hash;
+    ngx_expr_term_t       *term;
+    ngx_expr_when_t       *expr;
+    ngx_rbtree_node_t     *node, *sentinel;
+    ngx_expr_when_node_t  *entry;
 
-    expr = registry->expressions.elts;
-
-    for (i = 0; i < registry->expressions.nelts; i++) {
-        if (expr[i].terms.nelts != terms->nelts) {
-            continue;
-        }
-
-        a = expr[i].terms.elts;
-        b = terms->elts;
-
-        /* Compare fields, not padding or unused bits in the bit-field. */
-
-        for (j = 0; j < terms->nelts; j++) {
-            if (a[j].expr_id != b[j].expr_id
-                || a[j].negative != b[j].negative)
-            {
-                break;
-            }
-        }
-
-        if (j == terms->nelts) {
-            return expr[i].expr_id;
+    if (registry->when_index == NULL) {
+        registry->when_index = ngx_expr_tree_create(cf, ngx_expr_when_insert);
+        if (registry->when_index == NULL) {
+            return NGX_EXPR_NO_WHEN_ID;
         }
     }
 
+    hash = 0;
+    term = terms->elts;
+
+    for (i = 0; i < terms->nelts; i++) {
+        hash = ngx_hash(hash, term[i].expr_id);
+        hash = ngx_hash(hash, term[i].negative);
+    }
+
+    node = registry->when_index->tree.root;
+    sentinel = registry->when_index->tree.sentinel;
+
+    while (node != sentinel) {
+        if (hash != node->key) {
+            node = (hash < node->key) ? node->left : node->right;
+            continue;
+        }
+
+        entry = (ngx_expr_when_node_t *) node;
+        rc = ngx_expr_when_compare(term, terms->nelts,
+                                   entry->terms, entry->nelts);
+        if (rc == 0) {
+            return entry->id;
+        }
+
+        node = (rc < 0) ? node->left : node->right;
+    }
+
     if (registry->expressions.nelts == NGX_EXPR_NO_WHEN_ID) {
+        return NGX_EXPR_NO_WHEN_ID;
+    }
+
+    entry = ngx_palloc(cf->temp_pool, sizeof(ngx_expr_when_node_t));
+    if (entry == NULL) {
         return NGX_EXPR_NO_WHEN_ID;
     }
 
@@ -250,13 +503,19 @@ ngx_expr_get_when_id(ngx_conf_t *cf, ngx_expr_registry_t *registry,
         return NGX_EXPR_NO_WHEN_ID;
     }
 
-    a = ngx_array_push_n(&expr->terms, terms->nelts);
-    if (a == NULL) {
+    term = ngx_array_push_n(&expr->terms, terms->nelts);
+    if (term == NULL) {
         registry->expressions.nelts--;
         return NGX_EXPR_NO_WHEN_ID;
     }
 
-    ngx_memcpy(a, terms->elts, terms->nelts * sizeof(ngx_expr_term_t));
+    ngx_memcpy(term, terms->elts, terms->nelts * sizeof(ngx_expr_term_t));
+
+    entry->node.key = hash;
+    entry->terms = term;
+    entry->nelts = terms->nelts;
+    entry->id = expr->expr_id;
+    ngx_rbtree_insert(&registry->when_index->tree, &entry->node);
 
     return expr->expr_id;
 }
