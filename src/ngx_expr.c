@@ -70,6 +70,20 @@ typedef struct {
 } ngx_expr_id_node_t;
 
 
+struct ngx_expr_set_s {
+    void       *values;
+    ngx_uint_t  nelts;
+    unsigned    numeric:1;
+    unsigned    ignore_case:1;
+};
+
+
+static ngx_int_t ngx_expr_number_compare(ngx_expr_number_t *a,
+    ngx_expr_number_t *b);
+static int ngx_libc_cdecl ngx_expr_set_number_cmp(const void *a, const void *b);
+static int ngx_libc_cdecl ngx_expr_set_string_cmp(const void *a, const void *b);
+static int ngx_libc_cdecl ngx_expr_set_string_case_cmp(const void *a,
+    const void *b);
 static ngx_expr_tree_t *ngx_expr_tree_create(ngx_conf_t *cf,
     ngx_rbtree_insert_pt insert);
 static ngx_int_t ngx_expr_when_compare(ngx_expr_term_t *a, ngx_uint_t na,
@@ -707,10 +721,7 @@ ngx_expr_is_number(ngx_str_t *value)
 ngx_int_t
 ngx_expr_compare_numbers(ngx_str_t *a, ngx_str_t *b, ngx_int_t *result)
 {
-    size_t                   i, n;
-    ngx_int_t                rc;
-    ngx_expr_number_t        na, nb;
-    u_char                   da, db;
+    ngx_expr_number_t  na, nb;
 
     if (ngx_expr_parse_number(a, &na) != NGX_OK
         || ngx_expr_parse_number(b, &nb) != NGX_OK)
@@ -718,41 +729,187 @@ ngx_expr_compare_numbers(ngx_str_t *a, ngx_str_t *b, ngx_int_t *result)
         return NGX_ERROR;
     }
 
-    if (na.negative != nb.negative) {
-        *result = na.negative ? -1 : 1;
-        return NGX_OK;
+    *result = ngx_expr_number_compare(&na, &nb);
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_expr_number_compare(ngx_expr_number_t *a, ngx_expr_number_t *b)
+{
+    u_char     da, db;
+    size_t     i, n;
+    ngx_int_t  rc;
+
+    if (a->negative != b->negative) {
+        return a->negative ? -1 : 1;
     }
 
-    if (na.integer_len != nb.integer_len) {
-        rc = (na.integer_len < nb.integer_len) ? -1 : 1;
-        *result = na.negative ? -rc : rc;
-        return NGX_OK;
+    if (a->integer_len != b->integer_len) {
+        rc = (a->integer_len < b->integer_len) ? -1 : 1;
+        return a->negative ? -rc : rc;
     }
 
-    if (na.integer_len != 0) {
-        rc = ngx_memcmp(na.integer, nb.integer, na.integer_len);
+    if (a->integer_len != 0) {
+        rc = ngx_memcmp(a->integer, b->integer, a->integer_len);
         if (rc != 0) {
             rc = (rc < 0) ? -1 : 1;
-            *result = na.negative ? -rc : rc;
-            return NGX_OK;
+            return a->negative ? -rc : rc;
         }
     }
 
-    n = ngx_max(na.fraction_len, nb.fraction_len);
+    n = ngx_max(a->fraction_len, b->fraction_len);
 
     for (i = 0; i < n; i++) {
-        da = (i < na.fraction_len) ? na.fraction[i] : '0';
-        db = (i < nb.fraction_len) ? nb.fraction[i] : '0';
+        da = (i < a->fraction_len) ? a->fraction[i] : '0';
+        db = (i < b->fraction_len) ? b->fraction[i] : '0';
 
         if (da != db) {
             rc = (da < db) ? -1 : 1;
-            *result = na.negative ? -rc : rc;
-            return NGX_OK;
+            return a->negative ? -rc : rc;
         }
     }
 
-    *result = 0;
+    return 0;
+}
+
+
+static int ngx_libc_cdecl
+ngx_expr_set_number_cmp(const void *a, const void *b)
+{
+    return (int) ngx_expr_number_compare((ngx_expr_number_t *) a,
+                                         (ngx_expr_number_t *) b);
+}
+
+
+static int ngx_libc_cdecl
+ngx_expr_set_string_cmp(const void *a, const void *b)
+{
+    const ngx_str_t  *sa = a;
+    const ngx_str_t  *sb = b;
+
+    if (sa->len != sb->len) {
+        return (sa->len < sb->len) ? -1 : 1;
+    }
+
+    return ngx_strncmp(sa->data, sb->data, sa->len);
+}
+
+
+static int ngx_libc_cdecl
+ngx_expr_set_string_case_cmp(const void *a, const void *b)
+{
+    const ngx_str_t  *sa = a;
+    const ngx_str_t  *sb = b;
+
+    if (sa->len != sb->len) {
+        return (sa->len < sb->len) ? -1 : 1;
+    }
+
+    return (int) ngx_strncasecmp(sa->data, sb->data, sa->len);
+}
+
+
+ngx_int_t
+ngx_expr_set_create(ngx_conf_t *cf, ngx_str_t *values, ngx_uint_t nelts,
+    ngx_uint_t numeric, ngx_uint_t ignore_case, ngx_expr_set_t **set)
+{
+    size_t              size;
+    ngx_uint_t          i;
+    ngx_expr_set_t     *s;
+    ngx_expr_number_t  *number;
+
+    if (numeric) {
+        for (i = 0; i < nelts; i++) {
+            if (!ngx_expr_is_number(&values[i])) {
+                return NGX_DECLINED;
+            }
+        }
+    }
+
+    s = ngx_palloc(cf->pool, sizeof(ngx_expr_set_t));
+    if (s == NULL) {
+        return NGX_ERROR;
+    }
+
+    s->nelts = nelts;
+    s->numeric = numeric;
+    s->ignore_case = ignore_case;
+
+    size = numeric ? sizeof(ngx_expr_number_t) : sizeof(ngx_str_t);
+    s->values = ngx_palloc(cf->pool, nelts * size);
+    if (s->values == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (numeric) {
+        number = s->values;
+
+        for (i = 0; i < nelts; i++) {
+            if (ngx_expr_parse_number(&values[i], &number[i]) != NGX_OK) {
+                return NGX_ERROR;
+            }
+        }
+
+        ngx_qsort(s->values, nelts, size, ngx_expr_set_number_cmp);
+
+    } else {
+        ngx_memcpy(s->values, values, nelts * size);
+        ngx_qsort(s->values, nelts, size,
+                  ignore_case ? ngx_expr_set_string_case_cmp
+                  : ngx_expr_set_string_cmp);
+    }
+
+    *set = s;
+
     return NGX_OK;
+}
+
+
+ngx_int_t
+ngx_expr_set_match(ngx_expr_set_t *set, ngx_str_t *value)
+{
+    ngx_int_t          rc;
+    ngx_uint_t         low, high, mid;
+    ngx_str_t         *strings;
+    ngx_expr_number_t  number, *numbers;
+
+    if (set->numeric && ngx_expr_parse_number(value, &number) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    low = 0;
+    high = set->nelts;
+    strings = set->values;
+    numbers = set->values;
+
+    while (low < high) {
+        mid = low + (high - low) / 2;
+
+        if (set->numeric) {
+            rc = ngx_expr_number_compare(&number, &numbers[mid]);
+
+        } else if (set->ignore_case) {
+            rc = ngx_expr_set_string_case_cmp(value, &strings[mid]);
+
+        } else {
+            rc = ngx_expr_set_string_cmp(value, &strings[mid]);
+        }
+
+        if (rc == 0) {
+            return 1;
+        }
+
+        if (rc < 0) {
+            high = mid;
+
+        } else {
+            low = mid + 1;
+        }
+    }
+
+    return 0;
 }
 
 

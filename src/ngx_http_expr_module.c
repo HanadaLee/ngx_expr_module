@@ -41,6 +41,7 @@ struct ngx_http_expr_def_s {
         struct {
             ngx_http_complex_value_t  value;
             ngx_array_t               list_values; /* complex values */
+            ngx_expr_set_t           *set;
         } list;
 
         struct {
@@ -111,6 +112,8 @@ static ngx_int_t ngx_http_expr_compile_value(ngx_conf_t *cf,
     ngx_str_t *value, ngx_http_complex_value_t *complex_value);
 static ngx_http_expr_func_t *ngx_http_expr_find_func(
     ngx_str_t *name, ngx_uint_t *negative);
+static ngx_int_t ngx_http_expr_parse_list(ngx_conf_t *cf,
+    ngx_http_expr_def_t *definition, ngx_uint_t first);
 static ngx_int_t ngx_http_expr_parse_definition(ngx_conf_t *cf,
     ngx_http_expr_main_conf_t *cmcf,
     ngx_http_expr_func_t *func,
@@ -700,6 +703,67 @@ ngx_http_expr_parse_ip_range(ngx_conf_t *cf,
 
 
 static ngx_int_t
+ngx_http_expr_parse_list(ngx_conf_t *cf, ngx_http_expr_def_t *definition,
+    ngx_uint_t first)
+{
+    ngx_int_t                  rc;
+    ngx_uint_t                 i, n, dynamic;
+    ngx_str_t                 *value, *literal;
+    ngx_http_complex_value_t  *values;
+
+    value = cf->args->elts;
+
+    if (ngx_http_expr_compile_value(cf, &value[first],
+                                    &definition->u.list.value) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    n = cf->args->nelts - first - 1;
+    values = ngx_palloc(cf->temp_pool, n * sizeof(ngx_http_complex_value_t));
+    literal = ngx_palloc(cf->temp_pool, n * sizeof(ngx_str_t));
+    if (values == NULL || literal == NULL) {
+        return NGX_ERROR;
+    }
+
+    dynamic = 0;
+
+    for (i = 0; i < n; i++) {
+        if (ngx_http_expr_compile_value(cf, &value[first + i + 1], &values[i])
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        dynamic |= (values[i].lengths != NULL);
+        literal[i] = values[i].value;
+    }
+
+    if (!dynamic) {
+        rc = ngx_expr_set_create(cf, literal, n,
+                                 definition->func->type == NGX_EXPR_FUNC_NUM_IN,
+                                 definition->ignore_case,
+                                 &definition->u.list.set);
+        if (rc != NGX_DECLINED) {
+            return rc;
+        }
+    }
+
+    if (ngx_array_init(&definition->u.list.list_values, cf->pool, n,
+                       sizeof(ngx_http_complex_value_t)) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(definition->u.list.list_values.elts, values,
+               n * sizeof(ngx_http_complex_value_t));
+    definition->u.list.list_values.nelts = n;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
 ngx_http_expr_parse_definition(ngx_conf_t *cf,
     ngx_http_expr_main_conf_t *cmcf,
     ngx_http_expr_func_t *func,
@@ -707,7 +771,6 @@ ngx_http_expr_parse_definition(ngx_conf_t *cf,
 {
     ngx_str_t                   *value;
     ngx_uint_t                  argc, i;
-    ngx_http_complex_value_t    *list_value;
 #if (NGX_PCRE)
     u_char                      errstr[NGX_MAX_CONF_ERRSTR];
     ngx_regex_compile_t         rc;
@@ -778,34 +841,7 @@ ngx_http_expr_parse_definition(ngx_conf_t *cf,
     if (func->type == NGX_EXPR_FUNC_STR_IN
         || func->type == NGX_EXPR_FUNC_NUM_IN)
     {
-        if (ngx_http_expr_compile_value(cf, &value[first],
-                                        &definition->u.list.value)
-            != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-
-        if (ngx_array_init(&definition->u.list.list_values, cf->pool,
-                           argc - 1, sizeof(ngx_http_complex_value_t))
-            != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-
-        for (i = 1; i < argc; i++) {
-            list_value = ngx_array_push(&definition->u.list.list_values);
-            if (list_value == NULL) {
-                return NGX_ERROR;
-            }
-
-            if (ngx_http_expr_compile_value(cf, &value[first + i],
-                                            list_value) != NGX_OK)
-            {
-                return NGX_ERROR;
-            }
-        }
-
-        return NGX_OK;
+        return ngx_http_expr_parse_list(cf, definition, first);
     }
 
     if (func->type == NGX_EXPR_FUNC_STR_REGEX_MATCH) {
@@ -1375,6 +1411,15 @@ ngx_http_expr_string_handler(ngx_http_request_t *r,
     }
 
     if (definition->func->type == NGX_EXPR_FUNC_STR_IN) {
+        if (definition->u.list.set != NULL) {
+            result = ngx_expr_set_match(definition->u.list.set, &a);
+            if (result == NGX_ERROR) {
+                return 0;
+            }
+
+            return ngx_http_expr_apply_negation(definition, result);
+        }
+
         list_value = definition->u.list.list_values.elts;
 
         for (i = 0; i < definition->u.list.list_values.nelts; i++) {
@@ -1448,6 +1493,15 @@ ngx_http_expr_number_handler(ngx_http_request_t *r,
     }
 
     if (definition->func->type == NGX_EXPR_FUNC_NUM_IN) {
+        if (definition->u.list.set != NULL) {
+            result = ngx_expr_set_match(definition->u.list.set, &a);
+            if (result == NGX_ERROR) {
+                return 0;
+            }
+
+            return ngx_http_expr_apply_negation(definition, result);
+        }
+
         list_value = definition->u.list.list_values.elts;
 
         for (i = 0; i < definition->u.list.list_values.nelts; i++) {

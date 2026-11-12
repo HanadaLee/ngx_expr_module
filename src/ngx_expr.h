@@ -137,6 +137,7 @@ typedef struct {
 
 
 typedef struct ngx_expr_ip_ranges_s  ngx_expr_ip_ranges_t;
+typedef struct ngx_expr_set_s  ngx_expr_set_t;
 
 
 typedef struct {
@@ -227,6 +228,11 @@ ngx_int_t ngx_expr_index_set(ngx_conf_t *cf, ngx_expr_index_t *index,
 ngx_uint_t ngx_expr_id_find(ngx_expr_tree_t *tree, ngx_uint_t id);
 ngx_int_t ngx_expr_id_add(ngx_conf_t *cf, ngx_expr_tree_t **tree,
     ngx_uint_t id, ngx_uint_t offset);
+
+ngx_int_t ngx_expr_set_create(ngx_conf_t *cf, ngx_str_t *values,
+    ngx_uint_t nelts, ngx_uint_t numeric, ngx_uint_t ignore_case,
+    ngx_expr_set_t **set);
+ngx_int_t ngx_expr_set_match(ngx_expr_set_t *set, ngx_str_t *value);
 
 ngx_int_t ngx_expr_registry_init(ngx_pool_t *pool,
     ngx_expr_registry_t *registry);
