@@ -746,11 +746,6 @@ HTTP complex-value replacements are:
 ngx_http_set_expr_complex_value_slot
 ngx_http_set_expr_complex_value_zero_slot
 ngx_http_set_expr_complex_value_size_slot
-```
-
-When `NGX_RESTY_EXT` is enabled, HTTP also exports:
-
-```c
 ngx_http_set_expr_complex_value_msec_slot
 ngx_http_set_expr_complex_value_sec_slot
 ```
@@ -814,6 +809,10 @@ ngx_int_t ngx_http_get_expr_complex_value(
     ngx_http_request_t *r, ngx_array_t *values, ngx_str_t *value);
 size_t ngx_http_get_expr_complex_value_size(
     ngx_http_request_t *r, ngx_array_t *values, size_t default_value);
+ngx_msec_t ngx_http_get_expr_complex_value_msec(
+    ngx_http_request_t *r, ngx_array_t *values, ngx_msec_t default_value);
+time_t ngx_http_get_expr_complex_value_sec(
+    ngx_http_request_t *r, ngx_array_t *values, time_t default_value);
 
 ngx_int_t ngx_stream_get_expr_complex_value(
     ngx_stream_session_t *s, ngx_array_t *values, ngx_str_t *value);
@@ -822,9 +821,9 @@ size_t ngx_stream_get_expr_complex_value_size(
 ```
 
 The plain complex-value getter returns `NGX_DECLINED` when no entry applies.
-Size getters return the caller's `default_value`. Under `NGX_RESTY_EXT`, HTTP
-also provides `ngx_http_get_expr_complex_value_msec` and
-`ngx_http_get_expr_complex_value_sec`.
+Size and time getters return the caller's `default_value` when no entry applies
+or the value cannot be evaluated or parsed. Time values are supported on
+unmodified nginx as well as builds with core extensions.
 
 ### Expression result API
 

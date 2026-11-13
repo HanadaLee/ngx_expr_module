@@ -15,6 +15,20 @@ typedef struct ngx_http_expr_def_s  ngx_http_expr_def_t;
 typedef struct ngx_http_expr_func_s  ngx_http_expr_func_t;
 
 
+#if !(NGX_RESTY_EXT)
+
+typedef struct {
+    ngx_http_complex_value_t           value;
+
+    union {
+        ngx_msec_t                     msec;
+        time_t                         sec;
+    } u;
+} ngx_http_expr_complex_value_time_t;
+
+#endif
+
+
 typedef struct {
     unsigned                           has_timestamp:1;
     unsigned                           use_local_time:1;
@@ -105,6 +119,19 @@ static ngx_int_t ngx_http_expr_postconfiguration(ngx_conf_t *cf);
 
 static char *ngx_http_expr(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_http_expr_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+#if !(NGX_RESTY_EXT)
+static char *ngx_http_expr_set_complex_value_msec_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+static char *ngx_http_expr_set_complex_value_sec_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+static char *ngx_http_expr_set_complex_value_time_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf, ngx_uint_t is_sec);
+static ngx_msec_t ngx_http_expr_complex_value_msec(ngx_http_request_t *r,
+    ngx_http_complex_value_t *val, ngx_msec_t default_value);
+static time_t ngx_http_expr_complex_value_sec(ngx_http_request_t *r,
+    ngx_http_complex_value_t *val, time_t default_value);
+#endif
 
 static ngx_http_expr_scope_entry_t *ngx_http_expr_find_entry(
     ngx_http_expr_loc_conf_t *conf, ngx_expr_id_t id);
@@ -1820,21 +1847,25 @@ ngx_http_set_expr_complex_value_size_slot(ngx_conf_t *cf,
 }
 
 
-#if (NGX_RESTY_EXT)
-
 char *
 ngx_http_set_expr_complex_value_msec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    size_t   element_size, value_offset, expr_id_offset;
+    size_t               element_size, value_offset, expr_id_offset;
+    ngx_conf_handler_pt  setter;
 
     element_size = sizeof(ngx_http_expr_complex_value_ctx_t);
     value_offset = offsetof(ngx_http_expr_complex_value_ctx_t, value);
     expr_id_offset = offsetof(ngx_http_expr_complex_value_ctx_t, expr_id);
 
+#if (NGX_RESTY_EXT)
+    setter = ngx_http_set_complex_value_msec_slot;
+#else
+    setter = ngx_http_expr_set_complex_value_msec_slot;
+#endif
+
     return ngx_expr_call_ptr_slot(cf, cmd, conf, element_size,
-                                       value_offset, expr_id_offset,
-                                       ngx_http_set_complex_value_msec_slot);
+                                  value_offset, expr_id_offset, setter);
 }
 
 
@@ -1842,18 +1873,22 @@ char *
 ngx_http_set_expr_complex_value_sec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    size_t   element_size, value_offset, expr_id_offset;
+    size_t               element_size, value_offset, expr_id_offset;
+    ngx_conf_handler_pt  setter;
 
     element_size = sizeof(ngx_http_expr_complex_value_ctx_t);
     value_offset = offsetof(ngx_http_expr_complex_value_ctx_t, value);
     expr_id_offset = offsetof(ngx_http_expr_complex_value_ctx_t, expr_id);
 
-    return ngx_expr_call_ptr_slot(cf, cmd, conf, element_size,
-                                       value_offset, expr_id_offset,
-                                       ngx_http_set_complex_value_sec_slot);
-}
-
+#if (NGX_RESTY_EXT)
+    setter = ngx_http_set_complex_value_sec_slot;
+#else
+    setter = ngx_http_expr_set_complex_value_sec_slot;
 #endif
+
+    return ngx_expr_call_ptr_slot(cf, cmd, conf, element_size,
+                                  value_offset, expr_id_offset, setter);
+}
 
 
 ngx_int_t
@@ -1900,8 +1935,6 @@ ngx_http_get_expr_complex_value_size(ngx_http_request_t *r,
 }
 
 
-#if (NGX_RESTY_EXT)
-
 ngx_msec_t
 ngx_http_get_expr_complex_value_msec(ngx_http_request_t *r,
     ngx_array_t *values, ngx_msec_t default_value)
@@ -1919,7 +1952,11 @@ ngx_http_get_expr_complex_value_msec(ngx_http_request_t *r,
         return default_value;
     }
 
+#if (NGX_RESTY_EXT)
     return ngx_http_complex_value_msec(r, ctx->value, default_value);
+#else
+    return ngx_http_expr_complex_value_msec(r, ctx->value, default_value);
+#endif
 }
 
 
@@ -1940,7 +1977,151 @@ ngx_http_get_expr_complex_value_sec(ngx_http_request_t *r,
         return default_value;
     }
 
+#if (NGX_RESTY_EXT)
     return ngx_http_complex_value_sec(r, ctx->value, default_value);
+#else
+    return ngx_http_expr_complex_value_sec(r, ctx->value, default_value);
+#endif
+}
+
+
+#if !(NGX_RESTY_EXT)
+
+static char *
+ngx_http_expr_set_complex_value_msec_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf)
+{
+    return ngx_http_expr_set_complex_value_time_slot(cf, cmd, conf, 0);
+}
+
+
+static char *
+ngx_http_expr_set_complex_value_sec_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf)
+{
+    return ngx_http_expr_set_complex_value_time_slot(cf, cmd, conf, 1);
+}
+
+
+static char *
+ngx_http_expr_set_complex_value_time_slot(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf, ngx_uint_t is_sec)
+{
+    char  *p = conf;
+
+    ngx_str_t                           *value;
+    ngx_http_complex_value_t           **cv;
+    ngx_http_compile_complex_value_t     ccv;
+    ngx_http_expr_complex_value_time_t  *tcv;
+
+    cv = (ngx_http_complex_value_t **) (p + cmd->offset);
+
+    if (*cv != NGX_CONF_UNSET_PTR && *cv != NULL) {
+        return "is duplicate";
+    }
+
+    tcv = ngx_palloc(cf->pool, sizeof(ngx_http_expr_complex_value_time_t));
+    if (tcv == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    *cv = &tcv->value;
+    value = cf->args->elts;
+
+    ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+
+    ccv.cf = cf;
+    ccv.value = &value[1];
+    ccv.complex_value = *cv;
+
+    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    if (tcv->value.lengths) {
+        return NGX_CONF_OK;
+    }
+
+    if (is_sec) {
+        tcv->u.sec = ngx_parse_time(&tcv->value.value, 1);
+        if (tcv->u.sec == (time_t) NGX_ERROR) {
+            return "invalid value";
+        }
+
+    } else {
+        tcv->u.msec = ngx_parse_time(&tcv->value.value, 0);
+        if (tcv->u.msec == (ngx_msec_t) NGX_ERROR) {
+            return "invalid value";
+        }
+    }
+
+    return NGX_CONF_OK;
+}
+
+
+static ngx_msec_t
+ngx_http_expr_complex_value_msec(ngx_http_request_t *r,
+    ngx_http_complex_value_t *val, ngx_msec_t default_value)
+{
+    ngx_msec_t                           msec;
+    ngx_str_t                            value;
+    ngx_http_expr_complex_value_time_t  *tcv;
+
+    if (val == NULL) {
+        return default_value;
+    }
+
+    if (val->lengths == NULL) {
+        tcv = (ngx_http_expr_complex_value_time_t *) val;
+        return tcv->u.msec;
+    }
+
+    if (ngx_http_complex_value(r, val, &value) != NGX_OK) {
+        return default_value;
+    }
+
+    msec = ngx_parse_time(&value, 0);
+
+    if (msec == (ngx_msec_t) NGX_ERROR) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "invalid msec \"%V\"", &value);
+        return default_value;
+    }
+
+    return msec;
+}
+
+
+static time_t
+ngx_http_expr_complex_value_sec(ngx_http_request_t *r,
+    ngx_http_complex_value_t *val, time_t default_value)
+{
+    time_t                               sec;
+    ngx_str_t                            value;
+    ngx_http_expr_complex_value_time_t  *tcv;
+
+    if (val == NULL) {
+        return default_value;
+    }
+
+    if (val->lengths == NULL) {
+        tcv = (ngx_http_expr_complex_value_time_t *) val;
+        return tcv->u.sec;
+    }
+
+    if (ngx_http_complex_value(r, val, &value) != NGX_OK) {
+        return default_value;
+    }
+
+    sec = ngx_parse_time(&value, 1);
+
+    if (sec == (time_t) NGX_ERROR) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "invalid sec \"%V\"", &value);
+        return default_value;
+    }
+
+    return sec;
 }
 
 #endif

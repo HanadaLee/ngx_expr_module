@@ -23,10 +23,18 @@ configure_args=(
 )
 
 configure_args+=(--add-module="$module_root")
+configure_args+=(--add-module="$module_root/t/ngx_http_expr_time_test_module")
 
 cd "$nginx_source"
-sh ./configure "${configure_args[@]}"
+configure=./configure
+[[ -f "$configure" ]] || configure=auto/configure
+sh "$configure" "${configure_args[@]}"
 make -j"$build_jobs"
+
+core_extensions=0
+if grep -q '^#define NGX_RESTY_EXT  *1$' objs/ngx_auto_config.h; then
+    core_extensions=1
+fi
 
 export TEST_NGINX_BINARY="$nginx_source/objs/nginx"
 export PERL5LIB="$module_root/.ci/nginx-tests/lib"
@@ -49,10 +57,18 @@ cd "$module_root"
 shopt -s nullglob
 tests=()
 for test_file in t/*.t; do
+    if [[ "$core_extensions" == 0 ]]; then
+        case "$test_file" in
+            t/expr_core.t|t/expr_invalid.t|t/expr_complex_time.t) ;;
+            *) echo "SKIP: $test_file (requires conditional core directives)"
+               continue ;;
+        esac
+    fi
     tests+=("$test_file")
 done
 if (( ${#tests[@]} == 0 )); then
     echo "No tests selected" >&2
     exit 1
 fi
-prove -v "${tests[@]}"
+prove -v "${tests[@]}" | tee "$test_output/tests.log"
+grep -q '^Result: PASS$' "$test_output/tests.log"

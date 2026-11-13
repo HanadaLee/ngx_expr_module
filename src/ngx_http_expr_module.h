@@ -42,7 +42,6 @@ char *ngx_http_set_expr_complex_value_zero_slot(ngx_conf_t *cf,
 char *ngx_http_set_expr_complex_value_size_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 
-#if (NGX_RESTY_EXT)
 char *ngx_http_set_expr_complex_value_msec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 char *ngx_http_set_expr_complex_value_sec_slot(ngx_conf_t *cf,
@@ -51,7 +50,6 @@ ngx_msec_t ngx_http_get_expr_complex_value_msec(
     ngx_http_request_t *r, ngx_array_t *values, ngx_msec_t default_value);
 time_t ngx_http_get_expr_complex_value_sec(ngx_http_request_t *r,
     ngx_array_t *values, time_t default_value);
-#endif
 
 ngx_int_t ngx_http_get_expr_complex_value(ngx_http_request_t *r,
     ngx_array_t *values, ngx_str_t *value);
