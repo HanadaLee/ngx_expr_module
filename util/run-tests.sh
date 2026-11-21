@@ -32,7 +32,7 @@ sh "$configure" "${configure_args[@]}"
 make -j"$build_jobs"
 
 core_extensions=0
-if grep -q '^#define NGX_RESTY_EXT  *1$' objs/ngx_auto_config.h; then
+if grep -q '^#define NGX_EXT  *1$' objs/ngx_auto_config.h; then
     core_extensions=1
 fi
 

@@ -15,7 +15,7 @@ typedef struct ngx_http_expr_def_s  ngx_http_expr_def_t;
 typedef struct ngx_http_expr_func_s  ngx_http_expr_func_t;
 
 
-#if !(NGX_RESTY_EXT)
+#if !(NGX_EXT)
 
 typedef struct {
     ngx_http_complex_value_t           value;
@@ -120,7 +120,7 @@ static ngx_int_t ngx_http_expr_postconfiguration(ngx_conf_t *cf);
 static char *ngx_http_expr(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_http_expr_when(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
-#if !(NGX_RESTY_EXT)
+#if !(NGX_EXT)
 static char *ngx_http_expr_set_complex_value_msec_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 static char *ngx_http_expr_set_complex_value_sec_slot(ngx_conf_t *cf,
@@ -1858,7 +1858,7 @@ ngx_http_set_expr_complex_value_msec_slot(ngx_conf_t *cf,
     value_offset = offsetof(ngx_http_expr_complex_value_ctx_t, value);
     expr_id_offset = offsetof(ngx_http_expr_complex_value_ctx_t, expr_id);
 
-#if (NGX_RESTY_EXT)
+#if (NGX_EXT)
     setter = ngx_http_set_complex_value_msec_slot;
 #else
     setter = ngx_http_expr_set_complex_value_msec_slot;
@@ -1880,7 +1880,7 @@ ngx_http_set_expr_complex_value_sec_slot(ngx_conf_t *cf,
     value_offset = offsetof(ngx_http_expr_complex_value_ctx_t, value);
     expr_id_offset = offsetof(ngx_http_expr_complex_value_ctx_t, expr_id);
 
-#if (NGX_RESTY_EXT)
+#if (NGX_EXT)
     setter = ngx_http_set_complex_value_sec_slot;
 #else
     setter = ngx_http_expr_set_complex_value_sec_slot;
@@ -1952,7 +1952,7 @@ ngx_http_get_expr_complex_value_msec(ngx_http_request_t *r,
         return default_value;
     }
 
-#if (NGX_RESTY_EXT)
+#if (NGX_EXT)
     return ngx_http_complex_value_msec(r, ctx->value, default_value);
 #else
     return ngx_http_expr_complex_value_msec(r, ctx->value, default_value);
@@ -1977,7 +1977,7 @@ ngx_http_get_expr_complex_value_sec(ngx_http_request_t *r,
         return default_value;
     }
 
-#if (NGX_RESTY_EXT)
+#if (NGX_EXT)
     return ngx_http_complex_value_sec(r, ctx->value, default_value);
 #else
     return ngx_http_expr_complex_value_sec(r, ctx->value, default_value);
@@ -1985,7 +1985,7 @@ ngx_http_get_expr_complex_value_sec(ngx_http_request_t *r,
 }
 
 
-#if !(NGX_RESTY_EXT)
+#if !(NGX_EXT)
 
 static char *
 ngx_http_expr_set_complex_value_msec_slot(ngx_conf_t *cf,
